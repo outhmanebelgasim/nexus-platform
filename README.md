@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # NEXUS Platform
 
 ## Description
@@ -64,7 +63,6 @@ The project is currently in its initial setup phase.
 ## Contributors
 
 * Outhmane Belgasim
-* Amine Jabrane
 
 ## License
 
@@ -72,4 +70,3 @@ This project is developed as part of an engineering internship and is intended f
 =======
 # nexus-platform
 Modern agricultural monitoring platform for the NEXUS project, built with Spring Boot, React, TimescaleDB, and Redis to collect, process, and visualize real-time weather and soil sensor data.
->>>>>>> a4e6606741582264c11081858bb9a53c3ab56380
