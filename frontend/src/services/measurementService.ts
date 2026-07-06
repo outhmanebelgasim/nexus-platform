@@ -1,0 +1,17 @@
+import { apiClient } from "@/lib/api";
+import type { Measurement, MeasurementFilters } from "@/types/measurement";
+
+const MEASUREMENTS_ENDPOINT = "/api/measurements";
+
+export const measurementService = {
+  async findAll(filters: MeasurementFilters = {}) {
+    const response = await apiClient.get<Measurement[]>(MEASUREMENTS_ENDPOINT, {
+      params: {
+        sensorId: filters.sensorId,
+        start: filters.start,
+        end: filters.end,
+      },
+    });
+    return response.data;
+  },
+};
