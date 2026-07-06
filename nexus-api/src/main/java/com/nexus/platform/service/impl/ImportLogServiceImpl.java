@@ -3,10 +3,11 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.ImportLog;
 import com.nexus.platform.dto.importlog.ImportLogRequest;
 import com.nexus.platform.dto.importlog.ImportLogResponse;
+import com.nexus.platform.exception.DuplicateResourceException;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.ImportLogMapper;
 import com.nexus.platform.repository.ImportLogRepository;
 import com.nexus.platform.service.ImportLogService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,7 +38,7 @@ public class ImportLogServiceImpl implements ImportLogService {
     @Override
     public ImportLogResponse findByBatchId(UUID batchId) {
         return ImportLogMapper.toResponse(importLogRepository.findByBatchId(batchId)
-                .orElseThrow(() -> new EntityNotFoundException("Import log not found with batch id: " + batchId)));
+                .orElseThrow(() -> new ResourceNotFoundException("Import log not found with batch id: " + batchId)));
     }
 
     @Override
@@ -79,12 +80,12 @@ public class ImportLogServiceImpl implements ImportLogService {
 
     private ImportLog findImportLogById(Long id) {
         return importLogRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Import log not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Import log not found with id: " + id));
     }
 
     private void ensureBatchIdIsAvailable(UUID batchId) {
         importLogRepository.findByBatchId(batchId).ifPresent(importLog -> {
-            throw new IllegalArgumentException("Import log already exists with batch id: " + batchId);
+            throw new DuplicateResourceException("Import log already exists with batch id: " + batchId);
         });
     }
 
@@ -92,7 +93,7 @@ public class ImportLogServiceImpl implements ImportLogService {
         importLogRepository.findByBatchId(batchId)
                 .filter(existingImportLog -> !existingImportLog.getId().equals(importLogId))
                 .ifPresent(existingImportLog -> {
-                    throw new IllegalArgumentException("Import log already exists with batch id: " + batchId);
+                    throw new DuplicateResourceException("Import log already exists with batch id: " + batchId);
                 });
     }
 }

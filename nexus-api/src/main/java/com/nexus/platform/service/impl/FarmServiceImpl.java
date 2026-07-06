@@ -3,10 +3,10 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.Farm;
 import com.nexus.platform.dto.farm.FarmRequest;
 import com.nexus.platform.dto.farm.FarmResponse;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.FarmMapper;
 import com.nexus.platform.repository.FarmRepository;
 import com.nexus.platform.service.FarmService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +68,6 @@ public class FarmServiceImpl implements FarmService {
 
     private Farm findFarmById(Long id) {
         return farmRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Farm not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found with id: " + id));
     }
 }

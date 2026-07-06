@@ -4,11 +4,12 @@ import com.nexus.domain.entity.Measurement;
 import com.nexus.domain.entity.MeasurementId;
 import com.nexus.platform.dto.measurement.MeasurementRequest;
 import com.nexus.platform.dto.measurement.MeasurementResponse;
+import com.nexus.platform.exception.DuplicateResourceException;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.MeasurementMapper;
 import com.nexus.platform.repository.MeasurementRepository;
 import com.nexus.platform.repository.SensorRepository;
 import com.nexus.platform.service.MeasurementService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +59,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 
         MeasurementId id = new MeasurementId(request.time(), request.sensorId());
         if (measurementRepository.existsById(id)) {
-            throw new IllegalArgumentException("Measurement already exists for sensor id "
+            throw new DuplicateResourceException("Measurement already exists for sensor id "
                     + request.sensorId() + " at time " + request.time());
         }
 
@@ -75,7 +76,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 
         MeasurementId requestedId = new MeasurementId(request.time(), request.sensorId());
         if (!requestedId.equals(measurement.getId()) && measurementRepository.existsById(requestedId)) {
-            throw new IllegalArgumentException("Measurement already exists for sensor id "
+            throw new DuplicateResourceException("Measurement already exists for sensor id "
                     + request.sensorId() + " at time " + request.time());
         }
 
@@ -98,13 +99,13 @@ public class MeasurementServiceImpl implements MeasurementService {
     private Measurement findMeasurementById(Instant time, Long sensorId) {
         MeasurementId id = new MeasurementId(time, sensorId);
         return measurementRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Measurement not found for sensor id "
+                .orElseThrow(() -> new ResourceNotFoundException("Measurement not found for sensor id "
                         + sensorId + " at time " + time));
     }
 
     private void ensureSensorExists(Long sensorId) {
         if (!sensorRepository.existsById(sensorId)) {
-            throw new EntityNotFoundException("Sensor not found with id: " + sensorId);
+            throw new ResourceNotFoundException("Sensor not found with id: " + sensorId);
         }
     }
 }

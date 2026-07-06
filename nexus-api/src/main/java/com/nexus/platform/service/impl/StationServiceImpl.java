@@ -1,13 +1,15 @@
 package com.nexus.platform.service.impl;
 
+import com.nexus.domain.entity.Farm;
 import com.nexus.domain.entity.Station;
 import com.nexus.platform.dto.station.StationRequest;
 import com.nexus.platform.dto.station.StationResponse;
+import com.nexus.platform.exception.DuplicateResourceException;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.StationMapper;
 import com.nexus.platform.repository.FarmRepository;
 import com.nexus.platform.repository.StationRepository;
 import com.nexus.platform.service.StationService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,10 +47,12 @@ public class StationServiceImpl implements StationService {
     @Override
     @Transactional
     public StationResponse create(StationRequest request) {
-        ensureFarmExists(request.farmId());
+        Farm farm = farmRepository.findById(request.farmId())
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found with id: " + request.farmId()));
         ensureStationCodeIsAvailable(request.code());
 
         Station station = StationMapper.toEntity(request);
+        station.setFarm(farm);
         station.setCreatedAt(Instant.now());
         return StationMapper.toResponse(stationRepository.save(station));
     }
@@ -82,18 +86,18 @@ public class StationServiceImpl implements StationService {
 
     private Station findStationById(Long id) {
         return stationRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Station not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Station not found with id: " + id));
     }
 
     private void ensureFarmExists(Long farmId) {
         if (!farmRepository.existsById(farmId)) {
-            throw new EntityNotFoundException("Farm not found with id: " + farmId);
+            throw new ResourceNotFoundException("Farm not found with id: " + farmId);
         }
     }
 
     private void ensureStationCodeIsAvailable(String code) {
         if (stationRepository.existsByCode(code)) {
-            throw new IllegalArgumentException("Station already exists with code: " + code);
+            throw new DuplicateResourceException("Station already exists with code: " + code);
         }
     }
 
@@ -101,7 +105,7 @@ public class StationServiceImpl implements StationService {
         stationRepository.findByCode(code)
                 .filter(existingStation -> !existingStation.getId().equals(stationId))
                 .ifPresent(existingStation -> {
-                    throw new IllegalArgumentException("Station already exists with code: " + code);
+                    throw new DuplicateResourceException("Station already exists with code: " + code);
                 });
     }
 }

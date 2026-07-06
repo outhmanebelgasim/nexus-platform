@@ -3,11 +3,11 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.Alert;
 import com.nexus.platform.dto.alert.AlertRequest;
 import com.nexus.platform.dto.alert.AlertResponse;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.AlertMapper;
 import com.nexus.platform.repository.AlertRepository;
 import com.nexus.platform.repository.SensorRepository;
 import com.nexus.platform.service.AlertService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -77,12 +77,12 @@ public class AlertServiceImpl implements AlertService {
 
     private Alert findAlertById(Long id) {
         return alertRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Alert not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + id));
     }
 
     private void ensureSensorExists(Long sensorId) {
         if (!sensorRepository.existsById(sensorId)) {
-            throw new EntityNotFoundException("Sensor not found with id: " + sensorId);
+            throw new ResourceNotFoundException("Sensor not found with id: " + sensorId);
         }
     }
 }

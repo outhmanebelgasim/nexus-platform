@@ -3,10 +3,11 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.AppUser;
 import com.nexus.platform.dto.user.UserRequest;
 import com.nexus.platform.dto.user.UserResponse;
+import com.nexus.platform.exception.DuplicateResourceException;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.UserMapper;
 import com.nexus.platform.repository.UserRepository;
 import com.nexus.platform.service.UserService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +37,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse findByEmail(String email) {
         return UserMapper.toResponse(userRepository.findByEmail(email)
-                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + email)));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email)));
     }
 
     @Override
@@ -74,12 +75,12 @@ public class UserServiceImpl implements UserService {
 
     private AppUser findUserById(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
     }
 
     private void ensureEmailIsAvailable(String email) {
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("User already exists with email: " + email);
+            throw new DuplicateResourceException("User already exists with email: " + email);
         }
     }
 
@@ -87,7 +88,7 @@ public class UserServiceImpl implements UserService {
         userRepository.findByEmail(email)
                 .filter(existingUser -> !existingUser.getId().equals(userId))
                 .ifPresent(existingUser -> {
-                    throw new IllegalArgumentException("User already exists with email: " + email);
+                    throw new DuplicateResourceException("User already exists with email: " + email);
                 });
     }
 }

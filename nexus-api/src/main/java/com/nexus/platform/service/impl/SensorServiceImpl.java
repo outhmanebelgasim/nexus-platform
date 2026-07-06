@@ -3,11 +3,12 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.Sensor;
 import com.nexus.platform.dto.sensor.SensorRequest;
 import com.nexus.platform.dto.sensor.SensorResponse;
+import com.nexus.platform.exception.DuplicateResourceException;
+import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.SensorMapper;
 import com.nexus.platform.repository.SensorRepository;
 import com.nexus.platform.repository.StationRepository;
 import com.nexus.platform.service.SensorService;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,18 +84,18 @@ public class SensorServiceImpl implements SensorService {
 
     private Sensor findSensorById(Long id) {
         return sensorRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Sensor not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Sensor not found with id: " + id));
     }
 
     private void ensureStationExists(Long stationId) {
         if (!stationRepository.existsById(stationId)) {
-            throw new EntityNotFoundException("Station not found with id: " + stationId);
+            throw new ResourceNotFoundException("Station not found with id: " + stationId);
         }
     }
 
     private void ensureSensorCodeIsAvailable(String code) {
         if (sensorRepository.existsByCode(code)) {
-            throw new IllegalArgumentException("Sensor already exists with code: " + code);
+            throw new DuplicateResourceException("Sensor already exists with code: " + code);
         }
     }
 
@@ -102,7 +103,7 @@ public class SensorServiceImpl implements SensorService {
         sensorRepository.findByCode(code)
                 .filter(existingSensor -> !existingSensor.getId().equals(sensorId))
                 .ifPresent(existingSensor -> {
-                    throw new IllegalArgumentException("Sensor already exists with code: " + code);
+                    throw new DuplicateResourceException("Sensor already exists with code: " + code);
                 });
     }
 }
