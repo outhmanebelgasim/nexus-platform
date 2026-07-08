@@ -20,7 +20,7 @@ public final class UserMapper {
                 .fullName(request.fullName())
                 .email(request.email())
                 .role(request.role())
-                .enabled(request.enabled())
+                .status(request.status())
                 .build();
     }
 
@@ -33,8 +33,9 @@ public final class UserMapper {
                 user.getId(),
                 user.getFullName(),
                 user.getEmail(),
+                user.getCreatedById(),
                 user.getRole(),
-                user.getEnabled(),
+                user.getStatus(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );

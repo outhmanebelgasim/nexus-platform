@@ -1,6 +1,7 @@
 package com.nexus.platform.dto.user;
 
-import com.nexus.domain.enums.UserRole;
+import com.nexus.domain.enums.Role;
+import com.nexus.domain.enums.UserStatus;
 
 import java.time.Instant;
 
@@ -8,8 +9,9 @@ public record UserResponse(
         Long id,
         String fullName,
         String email,
-        UserRole role,
-        Boolean enabled,
+        Long createdById,
+        Role role,
+        UserStatus status,
         Instant createdAt,
         Instant updatedAt
 ) {

@@ -1,13 +1,10 @@
-package com.nexus.platform.dto.user;
+package com.nexus.platform.dto.auth;
 
-import com.nexus.domain.enums.Role;
-import com.nexus.domain.enums.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record UserRequest(
+public record RegisterRequest(
         @NotBlank
         @Size(max = 150)
         String fullName,
@@ -17,13 +14,12 @@ public record UserRequest(
         @Size(max = 180)
         String email,
 
+        @NotBlank
         @Size(min = 8, max = 128)
         String password,
 
-        @NotNull
-        Role role,
-
-        @NotNull
-        UserStatus status
+        @NotBlank
+        @Size(min = 8, max = 128)
+        String confirmPassword
 ) {
 }
