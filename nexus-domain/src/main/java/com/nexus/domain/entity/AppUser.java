@@ -1,6 +1,7 @@
 package com.nexus.domain.entity;
 
-import com.nexus.domain.enums.UserRole;
+import com.nexus.domain.enums.Role;
+import com.nexus.domain.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -25,15 +26,19 @@ public class AppUser {
     @Column(nullable = false, unique = true, length = 180)
     private String email;
 
-    @Column(name = "password_hash")
+    @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    @Column(name = "created_by_id")
+    private Long createdById;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    private UserRole role;
+    private Role role;
 
-    @Column(nullable = false)
-    private Boolean enabled;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private UserStatus status;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
