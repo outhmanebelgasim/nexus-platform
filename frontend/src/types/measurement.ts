@@ -14,3 +14,17 @@ export interface MeasurementFilters {
   start?: string;
   end?: string;
 }
+
+export type ChartType = "line" | "area" | "bar";
+export type TimeRangePreset = "1h" | "6h" | "12h" | "24h" | "7d" | "30d" | "custom";
+
+export interface MeasurementAnalyticsFilters {
+  farmId?: number;
+  stationId?: number;
+  sensorIds: number[];
+  measurementTypes: string[];
+  timeRange: TimeRangePreset;
+  start?: string;
+  end?: string;
+  chartType: ChartType;
+}

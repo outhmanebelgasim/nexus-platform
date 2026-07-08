@@ -4,30 +4,43 @@ import {
   ClipboardList,
   Database,
   Gauge,
+  LogOut,
   Menu,
   RadioTower,
+  Settings,
   Sprout,
   Thermometer,
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import type { Role } from "@/types/user";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Activity, enabled: true },
-  { name: "Farms", href: "/farms", icon: Sprout, enabled: true },
-  { name: "Stations", href: "/stations", icon: RadioTower, enabled: true },
-  { name: "Sensors", href: "/sensors", icon: Thermometer, enabled: true },
-  { name: "Measurements", href: "/measurements", icon: Gauge, enabled: true },
-  { name: "Alerts", href: "/alerts", icon: Bell, enabled: true },
-  { name: "Users", href: "/users", icon: Users, enabled: false },
-  { name: "Import Logs", href: "/import-logs", icon: ClipboardList, enabled: true },
+const navigation: Array<{ name: string; href: string; icon: typeof Activity; roles: Role[] }> = [
+  { name: "Dashboard", href: "/dashboard", icon: Activity, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Farms", href: "/farms", icon: Sprout, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Stations", href: "/stations", icon: RadioTower, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Sensors", href: "/sensors", icon: Thermometer, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Measurements", href: "/measurements", icon: Gauge, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Alerts", href: "/alerts", icon: Bell, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Users", href: "/users", icon: Users, roles: ["SUPER_ADMIN", "ADMIN"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
+  { name: "Import Logs", href: "/import-logs", icon: ClipboardList, roles: ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] },
 ];
 
 export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const visibleNavigation = navigation.filter((item) => Boolean(user && item.roles.includes(user.role)));
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,23 +66,8 @@ export function DashboardLayout() {
           </p>
         </div>
         <nav className="space-y-1 p-3">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const Icon = item.icon;
-
-            if (!item.enabled) {
-              return (
-                <div
-                  key={item.href}
-                  className="flex items-center justify-between rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground/70"
-                >
-                  <span className="flex items-center gap-3">
-                    <Icon className="h-4 w-4" aria-hidden="true" />
-                    {item.name}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-wide">Soon</span>
-                </div>
-              );
-            }
 
             return (
               <NavLink
@@ -120,9 +118,15 @@ export function DashboardLayout() {
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground sm:flex">
-            <Database className="h-4 w-4 text-primary" aria-hidden="true" />
-            Field network overview
+          <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground sm:flex">
+              <Database className="h-4 w-4 text-primary" aria-hidden="true" />
+              {user ? `${user.fullName} · ${user.role}` : "Field network overview"}
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={handleLogout}>
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Logout
+            </Button>
           </div>
         </header>
 

@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { useFarms } from "@/hooks/useFarms";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
+import { useAuth } from "@/hooks/useAuth";
 import type { Station, StationPayload } from "@/types/station";
 import { formatDateTime } from "@/utils/format";
 
@@ -19,6 +20,7 @@ type FormMode = "closed" | "create" | "edit";
 
 export function StationsPage() {
   const [selectedFarmId, setSelectedFarmId] = useState<number | undefined>();
+  const { hasRole } = useAuth();
   const { farms, isLoading: farmsLoading, error: farmsError } = useFarms();
   const { stations, isLoading, isSaving, error, loadStations, createStation, updateStation, deleteStation } =
     useStations(selectedFarmId);
@@ -27,6 +29,7 @@ export function StationsPage() {
   const [stationToDelete, setStationToDelete] = useState<Station | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const { showToast } = useToast();
+  const canManageStations = hasRole("SUPER_ADMIN", "ADMIN");
 
   const activeStations = stations.filter((station) => station.status === "ACTIVE").length;
   const latestUpdate = useMemo(() => {
@@ -109,10 +112,10 @@ export function StationsPage() {
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               Refresh
             </Button>
-            <Button type="button" onClick={openCreateForm} disabled={isSaving || farms.length === 0}>
+            {canManageStations ? <Button type="button" onClick={openCreateForm} disabled={isSaving || farms.length === 0}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               New station
-            </Button>
+            </Button> : null}
           </>
         }
       >
@@ -160,26 +163,26 @@ export function StationsPage() {
           ) : stations.length === 0 ? (
             <div className="rounded-md border border-dashed p-8 text-center">
               <p className="font-medium">No stations found</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create a station after registering at least one farm.</p>
-              <Button className="mt-4" type="button" onClick={openCreateForm} disabled={farms.length === 0}>
+              <p className="mt-1 text-sm text-muted-foreground">{canManageStations ? "Create a station after registering at least one farm." : "No station records are available for your account."}</p>
+              {canManageStations ? <Button className="mt-4" type="button" onClick={openCreateForm} disabled={farms.length === 0}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Create station
-              </Button>
+              </Button> : null}
             </div>
           ) : (
             <StationTable
               stations={stations}
               farms={farms}
               isSaving={isSaving}
-              onEdit={openEditForm}
-              onDelete={setStationToDelete}
+              onEdit={canManageStations ? openEditForm : undefined}
+              onDelete={canManageStations ? setStationToDelete : undefined}
             />
           )}
         </CardContent>
       </Card>
 
       <Dialog
-        open={formMode !== "closed"}
+        open={canManageStations && formMode !== "closed"}
         title={formMode === "edit" ? "Edit station" : "Create station"}
         description="Station records are linked to an existing farm."
         onOpenChange={(open) => {

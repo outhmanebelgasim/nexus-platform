@@ -11,8 +11,8 @@ interface StationTableProps {
   stations: Station[];
   farms: Farm[];
   isSaving: boolean;
-  onEdit: (station: Station) => void;
-  onDelete: (station: Station) => void;
+  onEdit?: (station: Station) => void;
+  onDelete?: (station: Station) => void;
 }
 
 function coordinates(station: Station) {
@@ -51,7 +51,7 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                   {formatDateTime(station.createdAt)}
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              {onEdit && onDelete ? <div className="grid grid-cols-2 gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => onEdit(station)} disabled={isSaving}>
                   <Edit className="h-4 w-4" aria-hidden="true" />
                   Edit
@@ -60,7 +60,7 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete
                 </Button>
-              </div>
+              </div> : null}
             </div>
           </article>
         ))}
@@ -75,7 +75,7 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
               <TableHead>Status</TableHead>
               <TableHead>Coordinates</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {onEdit && onDelete ? <TableHead className="text-right">Actions</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -91,7 +91,7 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                 </TableCell>
                 <TableCell>{coordinates(station)}</TableCell>
                 <TableCell>{formatDateTime(station.createdAt)}</TableCell>
-                <TableCell>
+                {onEdit && onDelete ? <TableCell>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => onEdit(station)} disabled={isSaving}>
                       <Edit className="h-4 w-4" aria-hidden="true" />
@@ -108,7 +108,7 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                       Delete
                     </Button>
                   </div>
-                </TableCell>
+                </TableCell> : null}
               </TableRow>
             ))}
           </TableBody>

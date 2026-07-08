@@ -14,6 +14,7 @@ import { useFarms } from "@/hooks/useFarms";
 import { useSensors } from "@/hooks/useSensors";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
+import { useAuth } from "@/hooks/useAuth";
 import type { Farm, FarmPayload } from "@/types/farm";
 
 type FormMode = "closed" | "create" | "edit";
@@ -21,6 +22,7 @@ type FarmSort = "name-asc" | "name-desc" | "newest" | "oldest";
 
 export function FarmsPage() {
   const { farms, isLoading, isSaving, error, loadFarms, createFarm, updateFarm, deleteFarm } = useFarms();
+  const { hasRole } = useAuth();
   const { stations } = useStations();
   const { sensors } = useSensors();
   const [formMode, setFormMode] = useState<FormMode>("closed");
@@ -30,6 +32,7 @@ export function FarmsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<FarmSort>("newest");
   const { showToast } = useToast();
+  const canManageFarms = hasRole("SUPER_ADMIN", "ADMIN");
   const activeStations = stations.filter((station) => station.status === "ACTIVE").length;
   const latestUpdate = useMemo(() => {
     const timestamps = farms
@@ -161,10 +164,10 @@ export function FarmsPage() {
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               Refresh
             </Button>
-            <Button type="button" onClick={openCreateForm} disabled={isSaving}>
+            {canManageFarms ? <Button type="button" onClick={openCreateForm} disabled={isSaving}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               New farm
-            </Button>
+            </Button> : null}
           </>
         }
       >
@@ -179,7 +182,7 @@ export function FarmsPage() {
 
       {error ? <Alert>{error}</Alert> : null}
 
-      {formMode === "create" ? (
+      {canManageFarms && formMode === "create" ? (
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Create farm</CardTitle>
@@ -230,11 +233,11 @@ export function FarmsPage() {
           ) : farms.length === 0 ? (
             <div className="rounded-md border border-dashed p-8 text-center">
               <p className="font-medium">No farms found</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create the first farm to start organizing stations.</p>
-              <Button className="mt-4" type="button" onClick={openCreateForm}>
+              <p className="mt-1 text-sm text-muted-foreground">{canManageFarms ? "Create the first farm to start organizing stations." : "No farm records are available for your account."}</p>
+              {canManageFarms ? <Button className="mt-4" type="button" onClick={openCreateForm}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Create farm
-              </Button>
+              </Button> : null}
             </div>
           ) : visibleFarms.length === 0 ? (
             <div className="rounded-md border border-dashed p-8 text-center">
@@ -242,13 +245,18 @@ export function FarmsPage() {
               <p className="mt-1 text-sm text-muted-foreground">Adjust the search term or sorting option.</p>
             </div>
           ) : (
-            <FarmTable farms={visibleFarms} isSaving={isSaving} onEdit={openEditForm} onDelete={handleDelete} />
+            <FarmTable
+              farms={visibleFarms}
+              isSaving={isSaving}
+              onEdit={canManageFarms ? openEditForm : undefined}
+              onDelete={canManageFarms ? handleDelete : undefined}
+            />
           )}
         </CardContent>
       </Card>
 
       <Dialog
-        open={formMode === "edit"}
+        open={canManageFarms && formMode === "edit"}
         title="Edit farm"
         description="Update the selected farm details. Changes are saved to the NEXUS API."
         onOpenChange={(open) => {

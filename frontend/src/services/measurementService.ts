@@ -14,4 +14,22 @@ export const measurementService = {
     });
     return response.data;
   },
+
+  async findAnalytics(filters: MeasurementFilters & { sensorIds?: number[] } = {}) {
+    if (!filters.sensorIds || filters.sensorIds.length === 0) {
+      return this.findAll(filters);
+    }
+
+    const responses = await Promise.all(
+      filters.sensorIds.map((sensorId) =>
+        this.findAll({
+          sensorId,
+          start: filters.start,
+          end: filters.end,
+        }),
+      ),
+    );
+
+    return responses.flat();
+  },
 };

@@ -13,14 +13,3 @@ export interface Sensor {
   createdAt: string | null;
   updatedAt: string | null;
 }
-
-export interface SensorPayload {
-  stationId: number;
-  code: string;
-  name?: string | null;
-  sensorType: string;
-  unit?: string | null;
-  depthCm?: number | null;
-  status: SensorStatus;
-  metadata?: string | null;
-}

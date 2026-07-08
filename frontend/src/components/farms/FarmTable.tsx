@@ -8,8 +8,8 @@ import { formatDateTime } from "@/utils/format";
 interface FarmTableProps {
   farms: Farm[];
   isSaving: boolean;
-  onEdit: (farm: Farm) => void;
-  onDelete: (farm: Farm) => void;
+  onEdit?: (farm: Farm) => void;
+  onDelete?: (farm: Farm) => void;
 }
 
 export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps) {
@@ -46,7 +46,7 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                   <Badge className="w-fit">No map link</Badge>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              {onEdit && onDelete ? <div className="grid grid-cols-2 gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={() => onEdit(farm)} disabled={isSaving}>
                   <Edit className="h-4 w-4" aria-hidden="true" />
                   Edit
@@ -55,7 +55,7 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   Delete
                 </Button>
-              </div>
+              </div> : null}
             </div>
           </article>
         ))}
@@ -68,7 +68,7 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
               <TableHead>Name</TableHead>
               <TableHead>Location</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              {onEdit && onDelete ? <TableHead className="text-right">Actions</TableHead> : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -101,7 +101,7 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                   </div>
                 </TableCell>
                 <TableCell>{formatDateTime(farm.createdAt)}</TableCell>
-                <TableCell>
+                {onEdit && onDelete ? <TableCell>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => onEdit(farm)} disabled={isSaving}>
                       <Edit className="h-4 w-4" aria-hidden="true" />
@@ -118,7 +118,7 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                       Delete
                     </Button>
                   </div>
-                </TableCell>
+                </TableCell> : null}
               </TableRow>
             ))}
           </TableBody>
