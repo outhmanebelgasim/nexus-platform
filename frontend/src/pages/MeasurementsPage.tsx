@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Database, Gauge, LineChart, RadioTower } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChartBuilder } from "@/components/measurement-chart/ChartBuilder";
 import { EmptyChartState } from "@/components/measurement-chart/EmptyChartState";
 import { LoadingChart } from "@/components/measurement-chart/LoadingChart";
@@ -14,8 +14,10 @@ import { useFarms } from "@/hooks/useFarms";
 import { useMeasurementAnalytics } from "@/hooks/useMeasurementAnalytics";
 import { useSensors } from "@/hooks/useSensors";
 import { useStations } from "@/hooks/useStations";
+import { userService } from "@/services/userService";
 import type { MeasurementAnalyticsFilters } from "@/types/measurement";
 import type { Sensor } from "@/types/sensor";
+import type { UserPermissions } from "@/types/user";
 
 const initialFilters: MeasurementAnalyticsFilters = {
   sensorIds: [],
@@ -47,20 +49,66 @@ function filterSensorsByScope(sensors: Sensor[], stationById: Map<number, { farm
 export function MeasurementsPage() {
   const [filters, setFilters] = useState<MeasurementAnalyticsFilters>(initialFilters);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
   const { farms, error: farmsError } = useFarms();
   const { stations, error: stationsError } = useStations();
   const { sensors, error: sensorsError } = useSensors();
   const { measurements, isLoading, error, hasGenerated, generateChart } = useMeasurementAnalytics();
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPermissions() {
+      try {
+        const data = await userService.currentPermissions();
+        if (!ignore) {
+          setPermissions(data);
+        }
+      } catch {
+        if (!ignore) {
+          setPermissionsError("Unable to load your measurement permissions.");
+        }
+      }
+    }
+
+    void loadPermissions();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   const stationById = useMemo(() => new Map(stations.map((station) => [station.id, station])), [stations]);
-  const scopedSensors = useMemo(
-    () => filterSensorsByScope(sensors, stationById, { ...filters, measurementTypes: [] }),
-    [filters, sensors, stationById],
+  const allowedFarmIds = useMemo(() => new Set(permissions?.farmIds ?? []), [permissions]);
+  const allowedStationIds = useMemo(() => new Set(permissions?.stationIds ?? []), [permissions]);
+  const allowedMeasurementTypes = useMemo<Set<string>>(() => new Set(permissions?.allowedMeasurementTypes ?? []), [permissions]);
+  const scopedFarms = useMemo(
+    () => (!permissions || permissions.role === "SUPER_ADMIN" ? farms : farms.filter((farm) => allowedFarmIds.has(farm.id))),
+    [allowedFarmIds, farms, permissions],
   );
-  const measurementTypeOptions = useMemo(() => getMeasurementTypeOptions(scopedSensors), [scopedSensors]);
+  const scopedStations = useMemo(
+    () => (!permissions || permissions.role === "SUPER_ADMIN" ? stations : stations.filter((station) => allowedStationIds.has(station.id))),
+    [allowedStationIds, permissions, stations],
+  );
+  const visibleSensors = useMemo(
+    () => (!permissions || permissions.role === "SUPER_ADMIN" ? sensors : sensors.filter((sensor) => allowedStationIds.has(sensor.stationId))),
+    [allowedStationIds, permissions, sensors],
+  );
+  const scopedSensors = useMemo(
+    () => filterSensorsByScope(visibleSensors, stationById, { ...filters, measurementTypes: [] }),
+    [filters, stationById, visibleSensors],
+  );
+  const measurementTypeOptions = useMemo(() => {
+    const inventoryTypes = getMeasurementTypeOptions(scopedSensors);
+    if (!permissions || permissions.role === "SUPER_ADMIN") {
+      return inventoryTypes;
+    }
+    return inventoryTypes.filter((type) => allowedMeasurementTypes.has(type));
+  }, [allowedMeasurementTypes, permissions, scopedSensors]);
   const selectedSensors = useMemo(
-    () => filterSensorsByScope(sensors, stationById, filters),
-    [filters, sensors, stationById],
+    () => filterSensorsByScope(visibleSensors, stationById, filters),
+    [filters, stationById, visibleSensors],
   );
   const filteredMeasurements = useMemo(() => {
     const selectedSensorIds = new Set(selectedSensors.map((sensor) => sensor.id));
@@ -93,7 +141,13 @@ export function MeasurementsPage() {
       return;
     }
 
-    const querySensors = filterSensorsByScope(sensors, stationById, filters);
+    const unauthorizedType = filters.measurementTypes.find((type) => permissions && permissions.role !== "SUPER_ADMIN" && !allowedMeasurementTypes.has(type));
+    if (unauthorizedType) {
+      setValidationError("You do not have permission to generate this measurement type.");
+      return;
+    }
+
+    const querySensors = filterSensorsByScope(visibleSensors, stationById, filters);
     if (querySensors.length === 0) {
       setValidationError("No sensors match the selected farm, station and measurement type combination.");
       return;
@@ -140,13 +194,13 @@ export function MeasurementsPage() {
         </div>
       </PageHeader>
 
-      {farmsError || stationsError || sensorsError ? <Alert>{farmsError ?? stationsError ?? sensorsError}</Alert> : null}
+      {farmsError || stationsError || sensorsError || permissionsError ? <Alert>{farmsError ?? stationsError ?? sensorsError ?? permissionsError}</Alert> : null}
 
       <ChartBuilder
         filters={filters}
-        farms={farms}
-        stations={stations}
-        sensors={sensors}
+        farms={scopedFarms}
+        stations={scopedStations}
+        sensors={visibleSensors}
         measurementTypes={measurementTypeOptions}
         isLoading={isLoading}
         error={validationError}

@@ -13,6 +13,7 @@ export interface MeasurementFilters {
   sensorId?: number;
   start?: string;
   end?: string;
+  measurementTypes?: string[];
 }
 
 export type ChartType = "line" | "area" | "bar";

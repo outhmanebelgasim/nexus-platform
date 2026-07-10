@@ -19,6 +19,7 @@ export function useMeasurementAnalytics() {
         sensorIds,
         start: filters.start,
         end: filters.end,
+        measurementTypes: filters.measurementTypes,
       });
       setMeasurements(data);
     } catch (loadError) {

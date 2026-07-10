@@ -10,6 +10,7 @@ export const measurementService = {
         sensorId: filters.sensorId,
         start: filters.start,
         end: filters.end,
+        measurementTypes: filters.measurementTypes,
       },
     });
     return response.data;
@@ -26,6 +27,7 @@ export const measurementService = {
           sensorId,
           start: filters.start,
           end: filters.end,
+          measurementTypes: filters.measurementTypes,
         }),
       ),
     );

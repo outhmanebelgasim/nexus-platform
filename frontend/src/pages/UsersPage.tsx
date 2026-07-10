@@ -1,5 +1,5 @@
-import { Edit, Plus, RefreshCcw, Search, Shield, Trash2, UserX, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { BarChart3, Building2, Check, CloudSun, Cpu, Edit, Leaf, MapPin, Plus, RefreshCcw, Search, Shield, Sprout, Trash2, UserX, Users } from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
@@ -13,10 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useFarms } from "@/hooks/useFarms";
 import { useAuth } from "@/hooks/useAuth";
+import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
-import type { Role, User, UserPayload, UserStatus } from "@/types/user";
+import { userService } from "@/services/userService";
+import type { MeasurementType, Role, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 import { formatDateTime } from "@/utils/format";
 
 type FormMode = "closed" | "create" | "edit";
@@ -37,10 +40,85 @@ const createUserSchema = baseUserSchema.extend({
   confirmPassword: z.string().min(1, "Please confirm the password."),
 });
 
+const measurementTypeOptions: MeasurementType[] = [
+  "AIR_TEMPERATURE",
+  "SOIL_TEMPERATURE",
+  "RELATIVE_HUMIDITY",
+  "SOIL_MOISTURE",
+  "WIND_SPEED",
+  "WIND_DIRECTION",
+  "SOLAR_RADIATION",
+  "RAINFALL",
+  "ET",
+  "PRESSURE",
+  "BATTERY_VOLTAGE",
+  "INTERNAL_TECHNICAL_DATA",
+];
+
+function formatMeasurementType(type: string) {
+  return type.replaceAll("_", " ");
+}
+
+const measurementGroups: Array<{ title: string; description: string; icon: typeof CloudSun; types: MeasurementType[] }> = [
+  {
+    title: "Weather",
+    description: "Atmospheric and rainfall telemetry",
+    icon: CloudSun,
+    types: ["AIR_TEMPERATURE", "RELATIVE_HUMIDITY", "WIND_SPEED", "WIND_DIRECTION", "PRESSURE", "RAINFALL", "SOLAR_RADIATION"],
+  },
+  {
+    title: "Soil",
+    description: "Soil temperature and moisture signals",
+    icon: Sprout,
+    types: ["SOIL_TEMPERATURE", "SOIL_MOISTURE"],
+  },
+  {
+    title: "Agronomy",
+    description: "Crop water demand indicators",
+    icon: Leaf,
+    types: ["ET"],
+  },
+  {
+    title: "System",
+    description: "Device health and technical readings",
+    icon: Cpu,
+    types: ["BATTERY_VOLTAGE", "INTERNAL_TECHNICAL_DATA"],
+  },
+];
+
+interface FormSectionProps {
+  title: string;
+  description: string;
+  children: ReactNode;
+}
+
+function FormSection({ title, description, children }: FormSectionProps) {
+  return (
+    <section className="space-y-4 rounded-lg border bg-background/60 p-4">
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">{title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function toggleNumber(values: number[], value: number) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function toggleMeasurementType(values: MeasurementType[], value: MeasurementType) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
 export function UsersPage() {
   const { users, isLoading, isSaving, error, loadUsers, createUser, updateUser, updateUserStatus, deleteUser } = useUsers();
   const { user: currentUser } = useAuth();
+  const { farms } = useFarms();
+  const { stations } = useStations();
   const { showToast } = useToast();
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -48,6 +126,8 @@ export function UsersPage() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<UserFieldErrors>({});
+  const [farmSearch, setFarmSearch] = useState("");
+  const [stationSearch, setStationSearch] = useState("");
   const [formValues, setFormValues] = useState<UserFormValues>({
     fullName: "",
     email: "",
@@ -57,6 +137,29 @@ export function UsersPage() {
     status: "ACTIVE",
   });
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPermissions() {
+      try {
+        const data = await userService.currentPermissions();
+        if (!ignore) {
+          setPermissions(data);
+        }
+      } catch {
+        if (!ignore) {
+          setPermissions(null);
+        }
+      }
+    }
+
+    void loadPermissions();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const canManageUser = (user: User) => {
     if (!currentUser) {
@@ -70,7 +173,49 @@ export function UsersPage() {
     return user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.id !== currentUser.id && user.id !== currentUser.createdById;
   };
 
-  const availableRoles: Role[] = isSuperAdmin ? ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] : ["TECHNICIAN", "VIEWER"];
+  const availableRoles: Role[] = isSuperAdmin ? ["ADMIN", "TECHNICIAN", "VIEWER"] : ["TECHNICIAN", "VIEWER"];
+  const availableFarms = useMemo(() => {
+    if (isSuperAdmin || !permissions) {
+      return farms;
+    }
+
+    const allowedFarmIds = new Set(permissions.farmIds);
+    return farms.filter((farm) => allowedFarmIds.has(farm.id));
+  }, [farms, isSuperAdmin, permissions]);
+  const availableStations = useMemo(() => {
+    if (isSuperAdmin || !permissions) {
+      return stations;
+    }
+
+    const allowedStationIds = new Set(permissions.stationIds);
+    return stations.filter((station) => allowedStationIds.has(station.id));
+  }, [isSuperAdmin, permissions, stations]);
+  const availableMeasurementTypes = isSuperAdmin || !permissions ? measurementTypeOptions : permissions.allowedMeasurementTypes;
+  const farmNameById = useMemo(() => new Map(farms.map((farm) => [farm.id, farm.name])), [farms]);
+  const stationNameById = useMemo(() => new Map(stations.map((station) => [station.id, `${station.name} (${station.code})`])), [stations]);
+  const selectedFarmIds = formValues.farmIds ?? [];
+  const selectedStationIds = formValues.stationIds ?? [];
+  const selectedMeasurementTypes = formValues.allowedMeasurementTypes ?? [];
+  const selectedFarmSet = useMemo(() => new Set(selectedFarmIds), [selectedFarmIds]);
+  const selectedStationSet = useMemo(() => new Set(selectedStationIds), [selectedStationIds]);
+  const selectedMeasurementSet = useMemo(() => new Set(selectedMeasurementTypes), [selectedMeasurementTypes]);
+  const visibleFarmOptions = useMemo(() => {
+    const query = farmSearch.trim().toLowerCase();
+    if (!query) {
+      return availableFarms;
+    }
+
+    return availableFarms.filter((farm) => [farm.name, farm.location ?? ""].some((value) => value.toLowerCase().includes(query)));
+  }, [availableFarms, farmSearch]);
+  const visibleStationOptions = useMemo(() => {
+    const query = stationSearch.trim().toLowerCase();
+    return availableStations.filter((station) => {
+      const matchesQuery = !query || [station.name, station.code].some((value) => value.toLowerCase().includes(query));
+      return matchesQuery;
+    });
+  }, [availableStations, stationSearch]);
+  const selectedFarmNames = selectedFarmIds.map((farmId) => farmNameById.get(farmId) ?? `Farm #${farmId}`);
+  const selectedStationNames = selectedStationIds.map((stationId) => stationNameById.get(stationId) ?? `Station #${stationId}`);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -87,7 +232,19 @@ export function UsersPage() {
     setSelectedUser(null);
     setFormError(null);
     setFieldErrors({});
-    setFormValues({ fullName: "", email: "", password: "", confirmPassword: "", role: "VIEWER", status: "ACTIVE" });
+    setFarmSearch("");
+    setStationSearch("");
+    setFormValues({
+      fullName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      role: "VIEWER",
+      status: "ACTIVE",
+      farmIds: [],
+      stationIds: [],
+      allowedMeasurementTypes: [],
+    });
     setFormMode("create");
   };
 
@@ -100,7 +257,19 @@ export function UsersPage() {
     setSelectedUser(user);
     setFormError(null);
     setFieldErrors({});
-    setFormValues({ fullName: user.fullName, email: user.email, password: "", confirmPassword: "", role: user.role, status: user.status });
+    setFarmSearch("");
+    setStationSearch("");
+    setFormValues({
+      fullName: user.fullName,
+      email: user.email,
+      password: "",
+      confirmPassword: "",
+      role: user.role,
+      status: user.status,
+      farmIds: user.farmIds ?? [],
+      stationIds: user.stationIds ?? [],
+      allowedMeasurementTypes: user.allowedMeasurementTypes ?? [],
+    });
     setFormMode("edit");
   };
 
@@ -141,6 +310,9 @@ export function UsersPage() {
         email: formValues.email,
         role: formValues.role,
         status: formValues.status,
+        farmIds: formValues.farmIds ?? [],
+        stationIds: formValues.stationIds ?? [],
+        allowedMeasurementTypes: formValues.allowedMeasurementTypes ?? [],
         ...(formMode === "create" ? { password: formValues.password } : {}),
       };
       if (formMode === "edit" && selectedUser) {
@@ -258,6 +430,7 @@ export function UsersPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Access</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -274,6 +447,28 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <OperationalBadge value={user.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {(user.farmIds ?? []).slice(0, 2).map((farmId) => (
+                            <Badge key={farmId}>{farmNameById.get(farmId) ?? `Farm #${farmId}`}</Badge>
+                          ))}
+                          {(user.farmIds ?? []).length > 2 ? <Badge>+{(user.farmIds ?? []).length - 2} farms</Badge> : null}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {(user.stationIds ?? []).slice(0, 2).map((stationId) => (
+                            <Badge key={stationId}>{stationNameById.get(stationId) ?? `Station #${stationId}`}</Badge>
+                          ))}
+                          {(user.stationIds ?? []).length > 2 ? <Badge>+{(user.stationIds ?? []).length - 2} stations</Badge> : null}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {(user.allowedMeasurementTypes ?? []).slice(0, 2).map((measurementType) => (
+                            <Badge key={measurementType}>{formatMeasurementType(measurementType)}</Badge>
+                          ))}
+                          {(user.allowedMeasurementTypes ?? []).length > 2 ? <Badge>+{(user.allowedMeasurementTypes ?? []).length - 2} measurements</Badge> : null}
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>{formatDateTime(user.createdAt)}</TableCell>
                     <TableCell>
@@ -323,93 +518,312 @@ export function UsersPage() {
       <Dialog
         open={formMode !== "closed"}
         title={formMode === "edit" ? "Edit user" : "Create user"}
-        description="Assign a role and account status for platform access."
+        description="Configure account details, platform role and data access in one place."
+        className="sm:max-w-5xl"
         onOpenChange={(open) => {
           if (!open && !isSaving) {
             closeForm();
           }
         }}
       >
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
           {formError ? <Alert>{formError}</Alert> : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full name</Label>
-              <Input
-                id="fullName"
-                value={formValues.fullName}
-                onChange={(event) => setFormValues((current) => ({ ...current, fullName: event.target.value }))}
-                aria-invalid={Boolean(fieldErrors.fullName)}
-                aria-describedby={fieldErrors.fullName ? "fullName-error" : undefined}
-                className={fieldErrors.fullName ? "border-destructive focus-visible:ring-destructive" : undefined}
-              />
-              {fieldErrors.fullName ? <p id="fullName-error" className="text-sm text-destructive">{fieldErrors.fullName}</p> : null}
+
+          <FormSection title="Account information" description="Basic identity used for sign-in and user directory records.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full name</Label>
+                <Input
+                  id="fullName"
+                  value={formValues.fullName}
+                  onChange={(event) => setFormValues((current) => ({ ...current, fullName: event.target.value }))}
+                  aria-invalid={Boolean(fieldErrors.fullName)}
+                  aria-describedby={fieldErrors.fullName ? "fullName-error" : undefined}
+                  className={fieldErrors.fullName ? "border-destructive focus-visible:ring-destructive" : undefined}
+                />
+                {fieldErrors.fullName ? <p id="fullName-error" className="text-sm text-destructive">{fieldErrors.fullName}</p> : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formValues.email}
+                  onChange={(event) => setFormValues((current) => ({ ...current, email: event.target.value }))}
+                  aria-invalid={Boolean(fieldErrors.email)}
+                  aria-describedby={fieldErrors.email ? "email-error" : undefined}
+                  className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : undefined}
+                />
+                {fieldErrors.email ? <p id="email-error" className="text-sm text-destructive">{fieldErrors.email}</p> : null}
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={formValues.email}
-                onChange={(event) => setFormValues((current) => ({ ...current, email: event.target.value }))}
-                aria-invalid={Boolean(fieldErrors.email)}
-                aria-describedby={fieldErrors.email ? "email-error" : undefined}
-                className={fieldErrors.email ? "border-destructive focus-visible:ring-destructive" : undefined}
-              />
-              {fieldErrors.email ? <p id="email-error" className="text-sm text-destructive">{fieldErrors.email}</p> : null}
+          </FormSection>
+
+          <FormSection title="Role and status" description="Control what this account can do inside the platform.">
+            <div className="grid gap-4 md:grid-cols-4">
+              {formMode === "create" ? (
+                <>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="Minimum 8 characters"
+                      value={formValues.password ?? ""}
+                      onChange={(event) => setFormValues((current) => ({ ...current, password: event.target.value }))}
+                      aria-invalid={Boolean(fieldErrors.password)}
+                      aria-describedby={fieldErrors.password ? "password-error" : undefined}
+                      className={fieldErrors.password ? "border-destructive focus-visible:ring-destructive" : undefined}
+                    />
+                    {fieldErrors.password ? <p id="password-error" className="text-sm text-destructive">{fieldErrors.password}</p> : null}
+                  </div>
+                  <div className="space-y-2 md:col-span-1">
+                    <Label htmlFor="confirmPassword">Confirm password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Repeat password"
+                      value={formValues.confirmPassword ?? ""}
+                      onChange={(event) => setFormValues((current) => ({ ...current, confirmPassword: event.target.value }))}
+                      aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                      aria-describedby={fieldErrors.confirmPassword ? "confirmPassword-error" : undefined}
+                      className={fieldErrors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : undefined}
+                    />
+                    {fieldErrors.confirmPassword ? <p id="confirmPassword-error" className="text-sm text-destructive">{fieldErrors.confirmPassword}</p> : null}
+                  </div>
+                </>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="role">Platform role</Label>
+                <Select id="role" value={formValues.role} onChange={(event) => setFormValues((current) => ({ ...current, role: event.target.value as Role }))}>
+                  {availableRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role.replace("_", " ")}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Account status</Label>
+                <Select id="status" value={formValues.status} onChange={(event) => setFormValues((current) => ({ ...current, status: event.target.value as UserStatus }))}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="DISABLED">Disabled</option>
+                </Select>
+              </div>
             </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {formMode === "create" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Minimum 8 characters"
-                    value={formValues.password ?? ""}
-                    onChange={(event) => setFormValues((current) => ({ ...current, password: event.target.value }))}
-                    aria-invalid={Boolean(fieldErrors.password)}
-                    aria-describedby={fieldErrors.password ? "password-error" : undefined}
-                    className={fieldErrors.password ? "border-destructive focus-visible:ring-destructive" : undefined}
-                  />
-                  {fieldErrors.password ? <p id="password-error" className="text-sm text-destructive">{fieldErrors.password}</p> : null}
+          </FormSection>
+
+          <FormSection title="Data access scope" description="Choose the farms and stations this user can see across operational screens.">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-3 rounded-lg border bg-card p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <Label className="flex items-center gap-2 text-sm font-semibold">
+                      <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
+                      Farm access
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">{selectedFarmIds.length} farms selected</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, farmIds: availableFarms.map((farm) => farm.id) }))}>
+                      Select all
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, farmIds: [] }))}>
+                      Clear
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="Repeat password"
-                    value={formValues.confirmPassword ?? ""}
-                    onChange={(event) => setFormValues((current) => ({ ...current, confirmPassword: event.target.value }))}
-                    aria-invalid={Boolean(fieldErrors.confirmPassword)}
-                    aria-describedby={fieldErrors.confirmPassword ? "confirmPassword-error" : undefined}
-                    className={fieldErrors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : undefined}
-                  />
-                  {fieldErrors.confirmPassword ? <p id="confirmPassword-error" className="text-sm text-destructive">{fieldErrors.confirmPassword}</p> : null}
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <Input className="pl-9" placeholder="Search farms..." value={farmSearch} onChange={(event) => setFarmSearch(event.target.value)} />
                 </div>
-              </>
-            ) : null}
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select id="role" value={formValues.role} onChange={(event) => setFormValues((current) => ({ ...current, role: event.target.value as Role }))}>
-                {availableRoles.map((role) => (
-                  <option key={role} value={role}>
-                    {role.replace("_", " ")}
-                  </option>
+                <div className="flex flex-wrap gap-2">
+                  {selectedFarmNames.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Select at least one farm or station.</span>
+                  ) : (
+                    selectedFarmNames.map((name) => <Badge key={name}>{name}</Badge>)
+                  )}
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {visibleFarmOptions.length === 0 ? (
+                    <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No farms match this search.</p>
+                  ) : (
+                    visibleFarmOptions.map((farm) => {
+                      const checked = selectedFarmSet.has(farm.id);
+                      return (
+                        <label
+                          key={farm.id}
+                          className="flex cursor-pointer items-start gap-3 rounded-md border bg-background p-3 transition-colors hover:border-primary/50 hover:bg-accent/40"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-input accent-primary"
+                            checked={checked}
+                            onChange={() => setFormValues((current) => ({ ...current, farmIds: toggleNumber(current.farmIds ?? [], farm.id) }))}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium">{farm.name}</span>
+                            <span className="block text-xs text-muted-foreground">{farm.location || "No location recorded"}</span>
+                          </span>
+                          {checked ? <Check className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-lg border bg-card p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <Label className="flex items-center gap-2 text-sm font-semibold">
+                      <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
+                      Station access
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">{selectedStationIds.length} stations selected</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setFormValues((current) => ({
+                          ...current,
+                          stationIds: availableStations
+                            .filter((station) => selectedFarmIds.length === 0 || selectedFarmSet.has(station.farmId))
+                            .map((station) => station.id),
+                        }))
+                      }
+                    >
+                      Select all
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, stationIds: [] }))}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <Input className="pl-9" placeholder="Search stations..." value={stationSearch} onChange={(event) => setStationSearch(event.target.value)} />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedStationNames.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">Stations are optional when farm access covers the scope.</span>
+                  ) : (
+                    selectedStationNames.map((name) => <Badge key={name}>{name}</Badge>)
+                  )}
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                  {visibleStationOptions.length === 0 ? (
+                    <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No stations match this search.</p>
+                  ) : (
+                    visibleStationOptions.map((station) => {
+                      const checked = selectedStationSet.has(station.id);
+                      const unavailable = selectedFarmIds.length > 0 && !selectedFarmSet.has(station.farmId) && !checked;
+                      return (
+                        <label
+                          key={station.id}
+                          className={`flex items-start gap-3 rounded-md border bg-background p-3 transition-colors ${
+                            unavailable ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-primary/50 hover:bg-accent/40"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-input accent-primary"
+                            checked={checked}
+                            disabled={unavailable}
+                            onChange={() => setFormValues((current) => ({ ...current, stationIds: toggleNumber(current.stationIds ?? [], station.id) }))}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium">{station.name}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {station.code} - {farmNameById.get(station.farmId) ?? `Farm #${station.farmId}`}
+                            </span>
+                          </span>
+                          {checked ? <Check className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection title="Chart access" description="Chart access controls which measurement types this user can visualize in analytics and dashboards.">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
+                {selectedMeasurementTypes.length} measurement types selected
+              </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, allowedMeasurementTypes: availableMeasurementTypes }))}>
+                  Select all
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, allowedMeasurementTypes: [] }))}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+            {selectedMeasurementTypes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Select at least one measurement type.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {selectedMeasurementTypes.map((measurementType) => (
+                  <Badge key={measurementType}>{formatMeasurementType(measurementType)}</Badge>
                 ))}
-              </Select>
+              </div>
+            )}
+            <div className="grid gap-3 lg:grid-cols-2">
+              {measurementGroups.map((group) => {
+                const Icon = group.icon;
+                return (
+                  <div key={group.title} className="rounded-lg border bg-card p-4">
+                    <div className="mb-3 flex items-start gap-3">
+                      <div className="rounded-md bg-primary/10 p-2 text-primary">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{group.title}</h4>
+                        <p className="text-xs text-muted-foreground">{group.description}</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {group.types.map((measurementType) => {
+                        const checked = selectedMeasurementSet.has(measurementType);
+                        const unavailable = !availableMeasurementTypes.includes(measurementType);
+                        return (
+                          <label
+                            key={measurementType}
+                            className={`flex items-center gap-3 rounded-md border bg-background px-3 py-2 text-sm transition-colors ${
+                              unavailable ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-primary/50 hover:bg-accent/40"
+                            } ${checked ? "border-primary bg-primary/5 text-primary" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input accent-primary"
+                              checked={checked}
+                              disabled={unavailable}
+                              onChange={() =>
+                                setFormValues((current) => ({
+                                  ...current,
+                                  allowedMeasurementTypes: toggleMeasurementType(current.allowedMeasurementTypes ?? [], measurementType),
+                                }))
+                              }
+                            />
+                            <span className="flex-1">{formatMeasurementType(measurementType)}</span>
+                            {checked ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select id="status" value={formValues.status} onChange={(event) => setFormValues((current) => ({ ...current, status: event.target.value as UserStatus }))}>
-                <option value="ACTIVE">Active</option>
-                <option value="DISABLED">Disabled</option>
-              </Select>
-            </div>
-          </div>
+          </FormSection>
+
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={closeForm} disabled={isSaving}>
               Cancel

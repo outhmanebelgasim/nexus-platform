@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api";
-import type { PasswordPayload, ProfilePayload, User, UserPayload, UserStatus } from "@/types/user";
+import type { PasswordPayload, ProfilePayload, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 
 const USERS_ENDPOINT = "/api/users";
 
@@ -16,6 +16,11 @@ export const userService = {
 
   async currentUser() {
     const response = await apiClient.get<User>(`${USERS_ENDPOINT}/me`);
+    return response.data;
+  },
+
+  async currentPermissions() {
+    const response = await apiClient.get<UserPermissions>(`${USERS_ENDPOINT}/me/permissions`);
     return response.data;
   },
 
