@@ -1,0 +1,16 @@
+package com.nexus.domain.enums;
+
+public enum MeasurementType {
+    AIR_TEMPERATURE,
+    SOIL_TEMPERATURE,
+    RELATIVE_HUMIDITY,
+    SOIL_MOISTURE,
+    WIND_SPEED,
+    WIND_DIRECTION,
+    SOLAR_RADIATION,
+    RAINFALL,
+    ET,
+    PRESSURE,
+    BATTERY_VOLTAGE,
+    INTERNAL_TECHNICAL_DATA
+}
