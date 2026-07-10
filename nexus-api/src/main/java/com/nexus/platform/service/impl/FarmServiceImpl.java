@@ -1,11 +1,13 @@
 package com.nexus.platform.service.impl;
 
 import com.nexus.domain.entity.Farm;
+import com.nexus.domain.entity.AppUser;
 import com.nexus.platform.dto.farm.FarmRequest;
 import com.nexus.platform.dto.farm.FarmResponse;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.FarmMapper;
 import com.nexus.platform.repository.FarmRepository;
+import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.FarmService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,9 +20,11 @@ import java.util.List;
 public class FarmServiceImpl implements FarmService {
 
     private final FarmRepository farmRepository;
+    private final AccessControlService accessControlService;
 
-    public FarmServiceImpl(FarmRepository farmRepository) {
+    public FarmServiceImpl(FarmRepository farmRepository, AccessControlService accessControlService) {
         this.farmRepository = farmRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
@@ -29,9 +33,24 @@ public class FarmServiceImpl implements FarmService {
     }
 
     @Override
+    public List<FarmResponse> findAll(String currentUserEmail) {
+        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        if (accessControlService.hasUnrestrictedAccess(user)) {
+            return findAll();
+        }
+        return FarmMapper.toResponseList(farmRepository.findByIdIn(List.copyOf(accessControlService.accessibleFarmIds(user))));
+    }
+
+    @Override
     public FarmResponse findById(Long id) {
         Farm farm = findFarmById(id);
         return FarmMapper.toResponse(farm);
+    }
+
+    @Override
+    public FarmResponse findById(Long id, String currentUserEmail) {
+        accessControlService.ensureFarmAccess(accessControlService.findUserByEmail(currentUserEmail), id);
+        return findById(id);
     }
 
     @Override

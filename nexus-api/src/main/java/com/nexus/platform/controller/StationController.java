@@ -6,6 +6,7 @@ import com.nexus.platform.service.StationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,17 +30,20 @@ public class StationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<StationResponse>> findAll(@RequestParam(required = false) Long farmId) {
+    public ResponseEntity<List<StationResponse>> findAll(
+            @RequestParam(required = false) Long farmId,
+            Authentication authentication
+    ) {
         if (farmId != null) {
-            return ResponseEntity.ok(stationService.findByFarmId(farmId));
+            return ResponseEntity.ok(stationService.findByFarmId(farmId, authentication.getName()));
         }
 
-        return ResponseEntity.ok(stationService.findAll());
+        return ResponseEntity.ok(stationService.findAll(authentication.getName()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<StationResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(stationService.findById(id));
+    public ResponseEntity<StationResponse> findById(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(stationService.findById(id, authentication.getName()));
     }
 
     @PostMapping

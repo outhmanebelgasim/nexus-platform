@@ -10,6 +10,8 @@ public interface SensorRepository extends JpaRepository<Sensor, Long> {
 
     List<Sensor> findByStationId(Long stationId);
 
+    List<Sensor> findByStationIdIn(List<Long> stationIds);
+
     Optional<Sensor> findByCode(String code);
 
     boolean existsByCode(String code);

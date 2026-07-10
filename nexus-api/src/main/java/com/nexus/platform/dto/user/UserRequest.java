@@ -1,11 +1,14 @@
 package com.nexus.platform.dto.user;
 
 import com.nexus.domain.enums.Role;
+import com.nexus.domain.enums.MeasurementType;
 import com.nexus.domain.enums.UserStatus;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import java.util.Set;
 
 public record UserRequest(
         @NotBlank
@@ -24,6 +27,12 @@ public record UserRequest(
         Role role,
 
         @NotNull
-        UserStatus status
+        UserStatus status,
+
+        Set<Long> farmIds,
+
+        Set<Long> stationIds,
+
+        Set<MeasurementType> allowedMeasurementTypes
 ) {
 }

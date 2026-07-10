@@ -4,6 +4,7 @@ import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.UserStatus;
 import com.nexus.platform.dto.user.UserRequest;
+import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.dto.user.UserResponse;
 import com.nexus.platform.dto.user.PasswordUpdateRequest;
 import com.nexus.platform.dto.user.ProfileUpdateRequest;
@@ -11,6 +12,7 @@ import com.nexus.platform.exception.DuplicateResourceException;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.UserMapper;
 import com.nexus.platform.repository.UserRepository;
+import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.UserService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,10 +28,16 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AccessControlService accessControlService;
 
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            AccessControlService accessControlService
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.accessControlService = accessControlService;
     }
 
     @Override
@@ -51,6 +59,11 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse currentUser(String email) {
         return UserMapper.toResponse(findByEmailOrThrow(email));
+    }
+
+    @Override
+    public UserPermissionsResponse currentUserPermissions(String email) {
+        return accessControlService.permissionsFor(email);
     }
 
     @Override
@@ -103,6 +116,7 @@ public class UserServiceImpl implements UserService {
             user.setCreatedById(currentUser.getId());
         }
         user.setCreatedAt(Instant.now());
+        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.allowedMeasurementTypes());
         return UserMapper.toResponse(userRepository.save(user));
     }
 
@@ -127,6 +141,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(updatedUser.getEmail());
         user.setRole(updatedUser.getRole());
         user.setStatus(updatedUser.getStatus());
+        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.allowedMeasurementTypes());
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
         }

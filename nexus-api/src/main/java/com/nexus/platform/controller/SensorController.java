@@ -6,6 +6,7 @@ import com.nexus.platform.service.SensorService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,17 +30,20 @@ public class SensorController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SensorResponse>> findAll(@RequestParam(required = false) Long stationId) {
+    public ResponseEntity<List<SensorResponse>> findAll(
+            @RequestParam(required = false) Long stationId,
+            Authentication authentication
+    ) {
         if (stationId != null) {
-            return ResponseEntity.ok(sensorService.findByStationId(stationId));
+            return ResponseEntity.ok(sensorService.findByStationId(stationId, authentication.getName()));
         }
 
-        return ResponseEntity.ok(sensorService.findAll());
+        return ResponseEntity.ok(sensorService.findAll(authentication.getName()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<SensorResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(sensorService.findById(id));
+    public ResponseEntity<SensorResponse> findById(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(sensorService.findById(id, authentication.getName()));
     }
 
     @PostMapping

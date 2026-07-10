@@ -9,5 +9,7 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     List<Alert> findBySensorId(Long sensorId);
 
+    List<Alert> findBySensorStationIdIn(List<Long> stationIds);
+
     List<Alert> findByStatus(String status);
 }

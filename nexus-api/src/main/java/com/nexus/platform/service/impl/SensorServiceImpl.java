@@ -1,5 +1,6 @@
 package com.nexus.platform.service.impl;
 
+import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Sensor;
 import com.nexus.platform.dto.sensor.SensorRequest;
 import com.nexus.platform.dto.sensor.SensorResponse;
@@ -8,6 +9,7 @@ import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.SensorMapper;
 import com.nexus.platform.repository.SensorRepository;
 import com.nexus.platform.repository.StationRepository;
+import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.SensorService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +23,16 @@ public class SensorServiceImpl implements SensorService {
 
     private final SensorRepository sensorRepository;
     private final StationRepository stationRepository;
+    private final AccessControlService accessControlService;
 
-    public SensorServiceImpl(SensorRepository sensorRepository, StationRepository stationRepository) {
+    public SensorServiceImpl(
+            SensorRepository sensorRepository,
+            StationRepository stationRepository,
+            AccessControlService accessControlService
+    ) {
         this.sensorRepository = sensorRepository;
         this.stationRepository = stationRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
@@ -33,14 +41,36 @@ public class SensorServiceImpl implements SensorService {
     }
 
     @Override
+    public List<SensorResponse> findAll(String currentUserEmail) {
+        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        if (accessControlService.hasUnrestrictedAccess(user)) {
+            return findAll();
+        }
+        return SensorMapper.toResponseList(sensorRepository.findByStationIdIn(List.copyOf(accessControlService.accessibleStationIds(user))));
+    }
+
+    @Override
     public SensorResponse findById(Long id) {
         return SensorMapper.toResponse(findSensorById(id));
+    }
+
+    @Override
+    public SensorResponse findById(Long id, String currentUserEmail) {
+        Sensor sensor = findSensorById(id);
+        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), sensor.getStation().getId());
+        return SensorMapper.toResponse(sensor);
     }
 
     @Override
     public List<SensorResponse> findByStationId(Long stationId) {
         ensureStationExists(stationId);
         return SensorMapper.toResponseList(sensorRepository.findByStationId(stationId));
+    }
+
+    @Override
+    public List<SensorResponse> findByStationId(Long stationId, String currentUserEmail) {
+        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), stationId);
+        return findByStationId(stationId);
     }
 
     @Override

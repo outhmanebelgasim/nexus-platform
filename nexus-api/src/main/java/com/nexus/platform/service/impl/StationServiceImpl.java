@@ -1,5 +1,6 @@
 package com.nexus.platform.service.impl;
 
+import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Farm;
 import com.nexus.domain.entity.Station;
 import com.nexus.platform.dto.station.StationRequest;
@@ -9,6 +10,7 @@ import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.StationMapper;
 import com.nexus.platform.repository.FarmRepository;
 import com.nexus.platform.repository.StationRepository;
+import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.StationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +24,16 @@ public class StationServiceImpl implements StationService {
 
     private final StationRepository stationRepository;
     private final FarmRepository farmRepository;
+    private final AccessControlService accessControlService;
 
-    public StationServiceImpl(StationRepository stationRepository, FarmRepository farmRepository) {
+    public StationServiceImpl(
+            StationRepository stationRepository,
+            FarmRepository farmRepository,
+            AccessControlService accessControlService
+    ) {
         this.stationRepository = stationRepository;
         this.farmRepository = farmRepository;
+        this.accessControlService = accessControlService;
     }
 
     @Override
@@ -34,14 +42,41 @@ public class StationServiceImpl implements StationService {
     }
 
     @Override
+    public List<StationResponse> findAll(String currentUserEmail) {
+        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        if (accessControlService.hasUnrestrictedAccess(user)) {
+            return findAll();
+        }
+        return StationMapper.toResponseList(stationRepository.findByIdIn(List.copyOf(accessControlService.accessibleStationIds(user))));
+    }
+
+    @Override
     public StationResponse findById(Long id) {
         return StationMapper.toResponse(findStationById(id));
+    }
+
+    @Override
+    public StationResponse findById(Long id, String currentUserEmail) {
+        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), id);
+        return findById(id);
     }
 
     @Override
     public List<StationResponse> findByFarmId(Long farmId) {
         ensureFarmExists(farmId);
         return StationMapper.toResponseList(stationRepository.findByFarmId(farmId));
+    }
+
+    @Override
+    public List<StationResponse> findByFarmId(Long farmId, String currentUserEmail) {
+        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        accessControlService.ensureFarmAccess(user, farmId);
+        if (accessControlService.hasUnrestrictedAccess(user)) {
+            return findByFarmId(farmId);
+        }
+        return StationMapper.toResponseList(stationRepository.findByFarmId(farmId).stream()
+                .filter(station -> accessControlService.accessibleStationIds(user).contains(station.getId()))
+                .toList());
     }
 
     @Override

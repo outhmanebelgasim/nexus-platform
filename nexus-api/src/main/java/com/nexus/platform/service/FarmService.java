@@ -9,7 +9,11 @@ public interface FarmService {
 
     List<FarmResponse> findAll();
 
+    List<FarmResponse> findAll(String currentUserEmail);
+
     FarmResponse findById(Long id);
+
+    FarmResponse findById(Long id, String currentUserEmail);
 
     FarmResponse create(FarmRequest request);
 

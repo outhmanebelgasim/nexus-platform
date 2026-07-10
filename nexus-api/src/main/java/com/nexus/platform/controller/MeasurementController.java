@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,25 +35,34 @@ public class MeasurementController {
     public ResponseEntity<List<MeasurementResponse>> findAll(
             @RequestParam(required = false) Long sensorId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end,
+            @RequestParam(required = false) List<String> measurementTypes,
+            Authentication authentication
     ) {
         if (sensorId != null && start != null && end != null) {
-            return ResponseEntity.ok(measurementService.findBySensorIdAndTimeBetween(sensorId, start, end));
+            return ResponseEntity.ok(measurementService.findBySensorIdAndTimeBetween(
+                    sensorId,
+                    start,
+                    end,
+                    authentication.getName(),
+                    measurementTypes
+            ));
         }
 
         if (sensorId != null) {
-            return ResponseEntity.ok(measurementService.findBySensorId(sensorId));
+            return ResponseEntity.ok(measurementService.findBySensorId(sensorId, authentication.getName(), measurementTypes));
         }
 
-        return ResponseEntity.ok(measurementService.findAll());
+        return ResponseEntity.ok(measurementService.findAll(authentication.getName()));
     }
 
     @GetMapping("/{sensorId}/{time}")
     public ResponseEntity<MeasurementResponse> findById(
             @PathVariable Long sensorId,
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant time
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant time,
+            Authentication authentication
     ) {
-        return ResponseEntity.ok(measurementService.findById(time, sensorId));
+        return ResponseEntity.ok(measurementService.findById(time, sensorId, authentication.getName()));
     }
 
     @PostMapping

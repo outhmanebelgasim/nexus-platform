@@ -10,11 +10,19 @@ public interface MeasurementService {
 
     List<MeasurementResponse> findAll();
 
+    List<MeasurementResponse> findAll(String currentUserEmail);
+
     MeasurementResponse findById(Instant time, Long sensorId);
+
+    MeasurementResponse findById(Instant time, Long sensorId, String currentUserEmail);
 
     List<MeasurementResponse> findBySensorId(Long sensorId);
 
+    List<MeasurementResponse> findBySensorId(Long sensorId, String currentUserEmail, List<String> measurementTypes);
+
     List<MeasurementResponse> findBySensorIdAndTimeBetween(Long sensorId, Instant start, Instant end);
+
+    List<MeasurementResponse> findBySensorIdAndTimeBetween(Long sensorId, Instant start, Instant end, String currentUserEmail, List<String> measurementTypes);
 
     MeasurementResponse create(MeasurementRequest request);
 

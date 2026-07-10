@@ -6,6 +6,7 @@ import com.nexus.platform.service.AlertService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,17 +30,20 @@ public class AlertController {
     }
 
     @GetMapping
-    public ResponseEntity<List<AlertResponse>> findAll(@RequestParam(required = false) Long sensorId) {
+    public ResponseEntity<List<AlertResponse>> findAll(
+            @RequestParam(required = false) Long sensorId,
+            Authentication authentication
+    ) {
         if (sensorId != null) {
-            return ResponseEntity.ok(alertService.findBySensorId(sensorId));
+            return ResponseEntity.ok(alertService.findBySensorId(sensorId, authentication.getName()));
         }
 
-        return ResponseEntity.ok(alertService.findAll());
+        return ResponseEntity.ok(alertService.findAll(authentication.getName()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<AlertResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(alertService.findById(id));
+    public ResponseEntity<AlertResponse> findById(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(alertService.findById(id, authentication.getName()));
     }
 
     @PostMapping

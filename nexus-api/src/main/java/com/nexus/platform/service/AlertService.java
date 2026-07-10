@@ -9,9 +9,15 @@ public interface AlertService {
 
     List<AlertResponse> findAll();
 
+    List<AlertResponse> findAll(String currentUserEmail);
+
     AlertResponse findById(Long id);
 
+    AlertResponse findById(Long id, String currentUserEmail);
+
     List<AlertResponse> findBySensorId(Long sensorId);
+
+    List<AlertResponse> findBySensorId(Long sensorId, String currentUserEmail);
 
     AlertResponse create(AlertRequest request);
 

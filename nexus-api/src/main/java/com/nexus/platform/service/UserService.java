@@ -1,6 +1,7 @@
 package com.nexus.platform.service;
 
 import com.nexus.platform.dto.user.UserRequest;
+import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.dto.user.UserResponse;
 import com.nexus.domain.enums.UserStatus;
 import com.nexus.platform.dto.user.PasswordUpdateRequest;
@@ -17,6 +18,8 @@ public interface UserService {
     UserResponse findByEmail(String email);
 
     UserResponse currentUser(String email);
+
+    UserPermissionsResponse currentUserPermissions(String email);
 
     UserResponse updateProfile(String email, ProfileUpdateRequest request);
 

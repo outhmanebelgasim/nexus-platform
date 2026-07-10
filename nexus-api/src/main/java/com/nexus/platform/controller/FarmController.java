@@ -6,6 +6,7 @@ import com.nexus.platform.service.FarmService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,13 +29,13 @@ public class FarmController {
     }
 
     @GetMapping
-    public ResponseEntity<List<FarmResponse>> findAll() {
-        return ResponseEntity.ok(farmService.findAll());
+    public ResponseEntity<List<FarmResponse>> findAll(Authentication authentication) {
+        return ResponseEntity.ok(farmService.findAll(authentication.getName()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<FarmResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(farmService.findById(id));
+    public ResponseEntity<FarmResponse> findById(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(farmService.findById(id, authentication.getName()));
     }
 
     @PostMapping

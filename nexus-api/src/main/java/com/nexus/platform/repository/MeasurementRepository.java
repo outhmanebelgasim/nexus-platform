@@ -11,6 +11,8 @@ public interface MeasurementRepository extends JpaRepository<Measurement, Measur
 
     List<Measurement> findBySensorIdOrderByIdTimeDesc(Long sensorId);
 
+    List<Measurement> findBySensorStationIdInOrderByIdTimeDesc(List<Long> stationIds);
+
     List<Measurement> findBySensorIdAndIdTimeBetweenOrderByIdTimeAsc(
             Long sensorId,
             Instant start,

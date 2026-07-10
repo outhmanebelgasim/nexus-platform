@@ -9,9 +9,15 @@ public interface StationService {
 
     List<StationResponse> findAll();
 
+    List<StationResponse> findAll(String currentUserEmail);
+
     StationResponse findById(Long id);
 
+    StationResponse findById(Long id, String currentUserEmail);
+
     List<StationResponse> findByFarmId(Long farmId);
+
+    List<StationResponse> findByFarmId(Long farmId, String currentUserEmail);
 
     StationResponse create(StationRequest request);
 

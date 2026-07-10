@@ -9,9 +9,15 @@ public interface SensorService {
 
     List<SensorResponse> findAll();
 
+    List<SensorResponse> findAll(String currentUserEmail);
+
     SensorResponse findById(Long id);
 
+    SensorResponse findById(Long id, String currentUserEmail);
+
     List<SensorResponse> findByStationId(Long stationId);
+
+    List<SensorResponse> findByStationId(Long stationId, String currentUserEmail);
 
     SensorResponse create(SensorRequest request);
 

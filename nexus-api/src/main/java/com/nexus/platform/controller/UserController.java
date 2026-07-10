@@ -3,6 +3,7 @@ package com.nexus.platform.controller;
 import com.nexus.platform.dto.user.PasswordUpdateRequest;
 import com.nexus.platform.dto.user.ProfileUpdateRequest;
 import com.nexus.platform.dto.user.UserRequest;
+import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.dto.user.UserResponse;
 import com.nexus.platform.dto.user.UserStatusRequest;
 import com.nexus.platform.service.UserService;
@@ -41,6 +42,11 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> currentUser(Authentication authentication) {
         return ResponseEntity.ok(userService.currentUser(authentication.getName()));
+    }
+
+    @GetMapping("/me/permissions")
+    public ResponseEntity<UserPermissionsResponse> currentUserPermissions(Authentication authentication) {
+        return ResponseEntity.ok(userService.currentUserPermissions(authentication.getName()));
     }
 
     @PutMapping("/me")
