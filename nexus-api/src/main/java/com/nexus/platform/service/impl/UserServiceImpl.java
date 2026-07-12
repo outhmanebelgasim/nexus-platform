@@ -20,11 +20,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
+
+    private static final Set<Role> ADMIN_MANAGED_ROLES = EnumSet.of(Role.TECHNICIAN, Role.VIEWER);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -41,19 +45,34 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<UserResponse> findAll() {
-        return UserMapper.toResponseList(userRepository.findAll());
+    public List<UserResponse> findAll(String currentUserEmail) {
+        AppUser currentUser = findCurrentUser(currentUserEmail);
+        if (currentUser.getRole() == Role.SUPER_ADMIN) {
+            return UserMapper.toResponseList(userRepository.findAll());
+        }
+
+        ensureAdmin(currentUser);
+        return UserMapper.toResponseList(userRepository.findByRoleIn(ADMIN_MANAGED_ROLES));
     }
 
     @Override
-    public UserResponse findById(Long id) {
-        return UserMapper.toResponse(findUserById(id));
+    public UserResponse findById(Long id, String currentUserEmail) {
+        AppUser targetUser = findUserById(id);
+        ensureCanManageUser(findCurrentUser(currentUserEmail), targetUser);
+        return UserMapper.toResponse(targetUser);
     }
 
     @Override
-    public UserResponse findByEmail(String email) {
-        return UserMapper.toResponse(userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email)));
+    public UserResponse findByEmail(String email, String currentUserEmail) {
+        AppUser currentUser = findCurrentUser(currentUserEmail);
+        if (currentUser.getRole() == Role.SUPER_ADMIN) {
+            return UserMapper.toResponse(userRepository.findByEmail(email)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email)));
+        }
+
+        ensureAdmin(currentUser);
+        return UserMapper.toResponse(userRepository.findByEmailAndRoleIn(email, ADMIN_MANAGED_ROLES)
+                .orElseThrow(() -> new AccessDeniedException("You do not have permission to perform this action")));
     }
 
     @Override
@@ -208,11 +227,8 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        if (currentUser.getRole() != Role.ADMIN) {
-            throw new AccessDeniedException("You do not have permission to perform this action");
-        }
-
-        if (targetUser.getRole() == Role.SUPER_ADMIN || targetUser.getId().equals(currentUser.getCreatedById())) {
+        ensureAdmin(currentUser);
+        if (!ADMIN_MANAGED_ROLES.contains(targetUser.getRole())) {
             throw new AccessDeniedException("You do not have permission to perform this action");
         }
     }
@@ -223,6 +239,12 @@ public class UserServiceImpl implements UserService {
         }
 
         if (currentUser.getRole() != Role.ADMIN || requestedRole == Role.SUPER_ADMIN || requestedRole == Role.ADMIN) {
+            throw new AccessDeniedException("You do not have permission to perform this action");
+        }
+    }
+
+    private void ensureAdmin(AppUser currentUser) {
+        if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("You do not have permission to perform this action");
         }
     }

@@ -35,8 +35,8 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UserResponse>> findAll() {
-        return ResponseEntity.ok(userService.findAll());
+    public ResponseEntity<List<UserResponse>> findAll(Authentication authentication) {
+        return ResponseEntity.ok(userService.findAll(authentication.getName()));
     }
 
     @GetMapping("/me")
@@ -67,13 +67,13 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.findById(id));
+    public ResponseEntity<UserResponse> findById(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(userService.findById(id, authentication.getName()));
     }
 
     @GetMapping("/search")
-    public ResponseEntity<UserResponse> findByEmail(@RequestParam String email) {
-        return ResponseEntity.ok(userService.findByEmail(email));
+    public ResponseEntity<UserResponse> findByEmail(@RequestParam String email, Authentication authentication) {
+        return ResponseEntity.ok(userService.findByEmail(email, authentication.getName()));
     }
 
     @PostMapping

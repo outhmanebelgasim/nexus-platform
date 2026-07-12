@@ -11,11 +11,11 @@ import java.util.List;
 
 public interface UserService {
 
-    List<UserResponse> findAll();
+    List<UserResponse> findAll(String currentUserEmail);
 
-    UserResponse findById(Long id);
+    UserResponse findById(Long id, String currentUserEmail);
 
-    UserResponse findByEmail(String email);
+    UserResponse findByEmail(String email, String currentUserEmail);
 
     UserResponse currentUser(String email);
 
