@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
+import { navigationAccess } from "@/lib/navigationAccess";
 import { AlertsPage } from "@/pages/AlertsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { FarmsPage } from "@/pages/FarmsPage";
@@ -22,14 +23,18 @@ export default function App() {
         <Route element={<DashboardLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/farms" element={<FarmsPage />} />
+          <Route element={<ProtectedRoute roles={navigationAccess.farms} />}>
+            <Route path="/farms" element={<FarmsPage />} />
+          </Route>
           <Route path="/stations" element={<StationsPage />} />
           <Route path="/sensors" element={<SensorsPage />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/import-logs" element={<ImportLogsPage />} />
+          <Route element={<ProtectedRoute roles={navigationAccess.importLogs} />}>
+            <Route path="/import-logs" element={<ImportLogsPage />} />
+          </Route>
           <Route path="/settings" element={<SettingsPage />} />
-          <Route element={<ProtectedRoute roles={["SUPER_ADMIN", "ADMIN"]} />}>
+          <Route element={<ProtectedRoute roles={navigationAccess.users} />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>
         </Route>

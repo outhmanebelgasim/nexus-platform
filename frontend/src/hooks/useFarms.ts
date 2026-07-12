@@ -3,7 +3,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { farmService } from "@/services/farmService";
 import type { Farm, FarmPayload } from "@/types/farm";
 
-export function useFarms() {
+export function useFarms(enabled = true) {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -27,6 +27,13 @@ export function useFarms() {
     let ignore = false;
 
     async function load() {
+      if (!enabled) {
+        setFarms([]);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -51,7 +58,7 @@ export function useFarms() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [enabled]);
 
   const createFarm = async (payload: FarmPayload) => {
     setIsSaving(true);

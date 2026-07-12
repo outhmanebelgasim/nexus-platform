@@ -4,9 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        const preference = localStorage.getItem("nexus.theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.classList.toggle("dark", preference === "dark" || (!preference && prefersDark));
+      })();
+    </script>
     <title>NEXUS Platform</title>
-    <script type="module" crossorigin src="/assets/index-iaF6pYtf.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Dh6_e-tY.css">
+    <script type="module" crossorigin src="/assets/index-g2Mec0Pm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-K3SxqTQa.css">
   </head>
   <body>
     <div id="root"></div>

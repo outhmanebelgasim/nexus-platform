@@ -19,7 +19,7 @@ export function ChartLegend({ series, hiddenSeries, onToggle }: ChartLegendProps
             onClick={() => onToggle(item.id)}
             aria-pressed={!isHidden}
           >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: isHidden ? "#94a3b8" : item.color }} />
+            <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground" style={isHidden ? undefined : { backgroundColor: item.color }} />
             <span className={isHidden ? "line-through" : ""}>{item.label}</span>
           </button>
         );

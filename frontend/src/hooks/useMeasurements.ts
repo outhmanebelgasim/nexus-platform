@@ -3,7 +3,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { measurementService } from "@/services/measurementService";
 import type { Measurement, MeasurementFilters } from "@/types/measurement";
 
-export function useMeasurements(filters: MeasurementFilters = {}) {
+export function useMeasurements(filters: MeasurementFilters = {}, enabled = true) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +30,13 @@ export function useMeasurements(filters: MeasurementFilters = {}) {
     let ignore = false;
 
     async function load() {
+      if (!enabled) {
+        setMeasurements([]);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -58,7 +65,7 @@ export function useMeasurements(filters: MeasurementFilters = {}) {
     return () => {
       ignore = true;
     };
-  }, [filters.sensorId, filters.start, filters.end]);
+  }, [enabled, filters.sensorId, filters.start, filters.end]);
 
   return { measurements, isLoading, error, loadMeasurements };
 }

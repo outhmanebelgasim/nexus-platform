@@ -2,16 +2,16 @@ import type { Measurement, MeasurementAnalyticsFilters, TimeRangePreset } from "
 import type { Sensor } from "@/types/sensor";
 
 export const analyticsPalette = [
-  "#2563eb",
-  "#16a34a",
-  "#f97316",
-  "#dc2626",
-  "#7c3aed",
-  "#0891b2",
-  "#ca8a04",
-  "#be185d",
-  "#0f766e",
-  "#4f46e5",
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+  "hsl(var(--chart-6))",
+  "hsl(var(--chart-7))",
+  "hsl(var(--chart-8))",
+  "hsl(var(--chart-9))",
+  "hsl(var(--chart-10))",
 ];
 
 export const timeRangeOptions: Array<{ value: TimeRangePreset; label: string }> = [

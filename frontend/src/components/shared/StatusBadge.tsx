@@ -12,10 +12,10 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <Badge
       className={cn(
-        status === "ACTIVE" && "bg-emerald-50 text-emerald-700",
-        status === "INACTIVE" && "bg-slate-100 text-slate-700",
-        status === "MAINTENANCE" && "bg-amber-50 text-amber-700",
-        status === "FAULTY" && "bg-red-50 text-red-700",
+        status === "ACTIVE" && "border-primary/30 bg-primary/10 text-primary",
+        status === "INACTIVE" && "border-border bg-muted text-muted-foreground",
+        status === "MAINTENANCE" && "border-accent bg-accent text-accent-foreground",
+        status === "FAULTY" && "border-destructive/30 bg-destructive/10 text-destructive",
       )}
     >
       {formatStatus(status)}

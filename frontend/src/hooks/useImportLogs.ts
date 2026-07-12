@@ -3,7 +3,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { importLogService } from "@/services/importLogService";
 import type { ImportLog } from "@/types/importLog";
 
-export function useImportLogs() {
+export function useImportLogs(enabled = true) {
   const [importLogs, setImportLogs] = useState<ImportLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,13 @@ export function useImportLogs() {
     let ignore = false;
 
     async function load() {
+      if (!enabled) {
+        setImportLogs([]);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -50,7 +57,7 @@ export function useImportLogs() {
     return () => {
       ignore = true;
     };
-  }, [loadImportLogs]);
+  }, [enabled, loadImportLogs]);
 
   return { importLogs, isLoading, error, loadImportLogs };
 }

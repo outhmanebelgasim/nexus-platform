@@ -10,10 +10,10 @@ export function OperationalBadge({ value }: OperationalBadgeProps) {
     <Badge
       className={cn(
         "whitespace-nowrap",
-        ["ACTIVE", "VALID", "SUCCESS", "RESOLVED"].includes(value) && "bg-emerald-50 text-emerald-700",
-        ["WARNING", "SUSPECT", "PARTIAL_SUCCESS", "MAINTENANCE"].includes(value) && "bg-amber-50 text-amber-700",
-        ["CRITICAL", "INVALID", "FAILED", "FAULTY", "OPEN"].includes(value) && "bg-red-50 text-red-700",
-        ["MISSING", "IGNORED", "INACTIVE"].includes(value) && "bg-slate-100 text-slate-700",
+        ["ACTIVE", "VALID", "SUCCESS", "RESOLVED"].includes(value) && "border-primary/30 bg-primary/10 text-primary",
+        ["WARNING", "SUSPECT", "PARTIAL_SUCCESS", "MAINTENANCE"].includes(value) && "border-accent bg-accent text-accent-foreground",
+        ["CRITICAL", "INVALID", "FAILED", "FAULTY", "OPEN"].includes(value) && "border-destructive/30 bg-destructive/10 text-destructive",
+        ["MISSING", "IGNORED", "INACTIVE"].includes(value) && "border-border bg-muted text-muted-foreground",
       )}
     >
       {value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())}

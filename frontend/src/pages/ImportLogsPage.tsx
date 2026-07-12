@@ -84,7 +84,10 @@ export function ImportLogsPage() {
           ) : visibleLogs.length === 0 ? (
             <div className="rounded-md border border-dashed p-8 text-center">
               <p className="font-medium">No import logs found</p>
-              <p className="mt-1 text-sm text-muted-foreground">The backend did not return importer executions for the current filters.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                No importer executions are available for the current filters. If the importer has not started yet, this page will remain empty until
+                the first .dat ingestion run is recorded by the backend.
+              </p>
             </div>
           ) : (
             <ImportLogTable importLogs={visibleLogs} />

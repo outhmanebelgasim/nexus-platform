@@ -23,6 +23,7 @@ import type { MeasurementType, Role, User, UserPayload, UserPermissions, UserSta
 import { formatDateTime } from "@/utils/format";
 
 type FormMode = "closed" | "create" | "edit";
+type RoleFilter = "ALL" | Role;
 type UserFormValues = UserPayload & {
   confirmPassword?: string;
 };
@@ -53,6 +54,20 @@ const measurementTypeOptions: MeasurementType[] = [
   "PRESSURE",
   "BATTERY_VOLTAGE",
   "INTERNAL_TECHNICAL_DATA",
+];
+
+const superAdminRoleFilterOptions: Array<{ label: string; value: RoleFilter }> = [
+  { label: "All", value: "ALL" },
+  { label: "SUPER_ADMIN", value: "SUPER_ADMIN" },
+  { label: "ADMIN", value: "ADMIN" },
+  { label: "TECHNICIAN", value: "TECHNICIAN" },
+  { label: "VIEWER", value: "VIEWER" },
+];
+
+const adminRoleFilterOptions: Array<{ label: string; value: RoleFilter }> = [
+  { label: "All", value: "ALL" },
+  { label: "TECHNICIAN", value: "TECHNICIAN" },
+  { label: "VIEWER", value: "VIEWER" },
 ];
 
 function formatMeasurementType(type: string) {
@@ -120,6 +135,7 @@ export function UsersPage() {
   const { showToast } = useToast();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userToDisable, setUserToDisable] = useState<User | null>(null);
@@ -170,10 +186,12 @@ export function UsersPage() {
       return user.id !== currentUser.id;
     }
 
-    return user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.id !== currentUser.id && user.id !== currentUser.createdById;
+    return user.role !== "SUPER_ADMIN" && user.role !== "ADMIN" && user.id !== currentUser.id;
   };
 
-  const availableRoles: Role[] = isSuperAdmin ? ["ADMIN", "TECHNICIAN", "VIEWER"] : ["TECHNICIAN", "VIEWER"];
+  const availableRoles: Role[] = isSuperAdmin ? ["SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER"] : ["TECHNICIAN", "VIEWER"];
+  const availableRoleFilterOptions = isSuperAdmin ? superAdminRoleFilterOptions : adminRoleFilterOptions;
+  const effectiveRoleFilter = availableRoleFilterOptions.some((option) => option.value === roleFilter) ? roleFilter : "ALL";
   const availableFarms = useMemo(() => {
     if (isSuperAdmin || !permissions) {
       return farms;
@@ -219,14 +237,16 @@ export function UsersPage() {
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return users;
-    }
 
-    return users.filter((user) =>
-      [user.fullName, user.email, user.role, user.status].some((value) => value.toLowerCase().includes(normalizedQuery)),
-    );
-  }, [searchQuery, users]);
+    return users.filter((user) => {
+      const matchesRole = effectiveRoleFilter === "ALL" || user.role === effectiveRoleFilter;
+      const matchesSearch =
+        !normalizedQuery ||
+        [user.fullName, user.email, user.role, user.status].some((value) => value.toLowerCase().includes(normalizedQuery));
+
+      return matchesRole && matchesSearch;
+    });
+  }, [effectiveRoleFilter, searchQuery, users]);
 
   const openCreateForm = () => {
     setSelectedUser(null);
@@ -406,9 +426,19 @@ export function UsersPage() {
             <CardTitle>User directory</CardTitle>
             <CardDescription>{visibleUsers.length} users shown</CardDescription>
           </div>
-          <div className="relative lg:w-96">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <Input className="pl-9" placeholder="Search users..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
+          <div className="grid w-full items-center gap-3 sm:grid-cols-[12rem_minmax(0,24rem)] lg:w-auto">
+            <Label htmlFor="roleFilter" className="sr-only">Filter by role</Label>
+            <Select id="roleFilter" value={effectiveRoleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}>
+              {availableRoleFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              <Input className="pl-9" placeholder="Search users..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

@@ -41,6 +41,15 @@ function pathFromPoints(points: Array<{ x: number; y: number }>) {
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 }
 
+function themeColor(token: string) {
+  return `hsl(var(${token}))`;
+}
+
+function resolvedThemeColor(token: string) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  return value ? `hsl(${value})` : themeColor(token);
+}
+
 export function MeasurementChart({ chartType, measurements, sensors, series }: MeasurementChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
@@ -147,7 +156,7 @@ export function MeasurementChart({ chartType, measurements, sensors, series }: M
         URL.revokeObjectURL(url);
         return;
       }
-      context.fillStyle = "#ffffff";
+      context.fillStyle = resolvedThemeColor("--card");
       context.fillRect(0, 0, width, height);
       context.drawImage(image, 0, 0);
       URL.revokeObjectURL(url);
@@ -182,7 +191,7 @@ export function MeasurementChart({ chartType, measurements, sensors, series }: M
       </CardHeader>
       <CardContent className="space-y-4">
         <ChartLegend series={series} hiddenSeries={hiddenSeries} onToggle={handleToggleSeries} />
-        <div className="relative rounded-md border bg-white p-2">
+        <div className="relative rounded-md border bg-card p-2">
           <svg
             ref={svgRef}
             className="h-[420px] w-full touch-none"
@@ -192,26 +201,26 @@ export function MeasurementChart({ chartType, measurements, sensors, series }: M
             onPointerMove={handlePointerMove}
             onPointerLeave={() => setTooltip(null)}
           >
-            <rect width={width} height={height} fill="#ffffff" />
+            <rect width={width} height={height} fill={themeColor("--card")} />
             {Array.from({ length: 5 }).map((_, index) => {
               const y = padding.top + (index / 4) * (height - padding.top - padding.bottom);
               const value = maxValue - (index / 4) * valueRange;
               return (
                 <g key={index}>
-                  <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#e2e8f0" />
-                  <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill="#64748b">
+                  <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={themeColor("--border")} />
+                  <text x={padding.left - 12} y={y + 4} textAnchor="end" fontSize="12" fill={themeColor("--muted-foreground")}>
                     {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                   </text>
                 </g>
               );
             })}
-            <line x1={padding.left} x2={padding.left} y1={padding.top} y2={height - padding.bottom} stroke="#cbd5e1" />
+            <line x1={padding.left} x2={padding.left} y1={padding.top} y2={height - padding.bottom} stroke={themeColor("--border")} />
             <line
               x1={padding.left}
               x2={width - padding.right}
               y1={height - padding.bottom}
               y2={height - padding.bottom}
-              stroke="#cbd5e1"
+              stroke={themeColor("--border")}
             />
 
             {chartSeries.map((item) => {
@@ -265,14 +274,14 @@ export function MeasurementChart({ chartType, measurements, sensors, series }: M
 
             {tooltip ? (
               <g>
-                <rect x={tooltip.x - 118} y={tooltip.y} width="236" height={56 + tooltip.values.length * 18} rx="8" fill="#0f172a" opacity="0.94" />
-                <text x={tooltip.x - 102} y={tooltip.y + 24} fontSize="12" fill="#e2e8f0">
+                <rect x={tooltip.x - 118} y={tooltip.y} width="236" height={56 + tooltip.values.length * 18} rx="8" fill={themeColor("--foreground")} opacity="0.94" />
+                <text x={tooltip.x - 102} y={tooltip.y + 24} fontSize="12" fill={themeColor("--background")}>
                   {tooltip.label}
                 </text>
                 {tooltip.values.map((item, index) => (
                   <g key={item.label}>
                     <circle cx={tooltip.x - 96} cy={tooltip.y + 48 + index * 18} r="4" fill={item.color} />
-                    <text x={tooltip.x - 86} y={tooltip.y + 52 + index * 18} fontSize="12" fill="#f8fafc">
+                    <text x={tooltip.x - 86} y={tooltip.y + 52 + index * 18} fontSize="12" fill={themeColor("--background")}>
                       {item.label}: {item.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </text>
                   </g>

@@ -3,7 +3,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { alertService } from "@/services/alertService";
 import type { AlertEvent } from "@/types/alert";
 
-export function useAlerts(sensorId?: number) {
+export function useAlerts(sensorId?: number, enabled = true) {
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +26,13 @@ export function useAlerts(sensorId?: number) {
     let ignore = false;
 
     async function load() {
+      if (!enabled) {
+        setAlerts([]);
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -50,7 +57,7 @@ export function useAlerts(sensorId?: number) {
     return () => {
       ignore = true;
     };
-  }, [sensorId]);
+  }, [enabled, sensorId]);
 
   return { alerts, isLoading, error, loadAlerts };
 }
