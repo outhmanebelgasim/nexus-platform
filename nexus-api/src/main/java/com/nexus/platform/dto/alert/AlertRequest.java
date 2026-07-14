@@ -9,8 +9,9 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 
 public record AlertRequest(
-        @NotNull
         Long sensorId,
+
+        Long variableId,
 
         @NotBlank
         @Size(max = 80)

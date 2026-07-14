@@ -65,13 +65,14 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponse findByEmail(String email, String currentUserEmail) {
         AppUser currentUser = findCurrentUser(currentUserEmail);
+        String normalizedEmail = normalizeEmail(email);
         if (currentUser.getRole() == Role.SUPER_ADMIN) {
-            return UserMapper.toResponse(userRepository.findByEmail(email)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email)));
+            return UserMapper.toResponse(userRepository.findByEmailIgnoreCase(normalizedEmail)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + normalizedEmail)));
         }
 
         ensureAdmin(currentUser);
-        return UserMapper.toResponse(userRepository.findByEmailAndRoleIn(email, ADMIN_MANAGED_ROLES)
+        return UserMapper.toResponse(userRepository.findByEmailIgnoreCaseAndRoleIn(normalizedEmail, ADMIN_MANAGED_ROLES)
                 .orElseThrow(() -> new AccessDeniedException("You do not have permission to perform this action")));
     }
 
@@ -89,9 +90,10 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse updateProfile(String email, ProfileUpdateRequest request) {
         AppUser user = findByEmailOrThrow(email);
-        ensureEmailIsAvailableForUpdate(request.email(), user.getId());
+        String normalizedEmail = normalizeEmail(request.email());
+        ensureEmailIsAvailableForUpdate(normalizedEmail, user.getId());
         user.setFullName(request.fullName());
-        user.setEmail(request.email());
+        user.setEmail(normalizedEmail);
         user.setUpdatedAt(Instant.now());
         return UserMapper.toResponse(userRepository.save(user));
     }
@@ -125,11 +127,13 @@ public class UserServiceImpl implements UserService {
         if (request.password() == null || request.password().isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
-        ensureEmailIsAvailable(request.email());
+        String normalizedEmail = normalizeEmail(request.email());
+        ensureEmailIsAvailable(normalizedEmail);
         AppUser currentUser = findCurrentUser(currentUserEmail);
         ensureCanManageRole(currentUser, request.role());
 
         AppUser user = UserMapper.toEntity(request);
+        user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         if (currentUser != null) {
             user.setCreatedById(currentUser.getId());
@@ -149,7 +153,8 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserResponse update(Long id, UserRequest request, String currentUserEmail) {
         AppUser user = findUserById(id);
-        ensureEmailIsAvailableForUpdate(request.email(), id);
+        String normalizedEmail = normalizeEmail(request.email());
+        ensureEmailIsAvailableForUpdate(normalizedEmail, id);
         AppUser currentUser = findCurrentUser(currentUserEmail);
         ensureCanManageUser(currentUser, user);
         ensureCanManageRole(currentUser, request.role());
@@ -157,7 +162,7 @@ public class UserServiceImpl implements UserService {
 
         AppUser updatedUser = UserMapper.toEntity(request);
         user.setFullName(updatedUser.getFullName());
-        user.setEmail(updatedUser.getEmail());
+        user.setEmail(normalizedEmail);
         user.setRole(updatedUser.getRole());
         user.setStatus(updatedUser.getStatus());
         accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.allowedMeasurementTypes());
@@ -197,18 +202,18 @@ public class UserServiceImpl implements UserService {
     }
 
     private AppUser findByEmailOrThrow(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(normalizeEmail(email))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private void ensureEmailIsAvailable(String email) {
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateResourceException("User already exists with email: " + email);
         }
     }
 
     private void ensureEmailIsAvailableForUpdate(String email, Long userId) {
-        if (userRepository.existsByEmailAndIdNot(email, userId)) {
+        if (userRepository.existsByEmailIgnoreCaseAndIdNot(email, userId)) {
             throw new DuplicateResourceException("User already exists with email: " + email);
         }
     }
@@ -218,8 +223,12 @@ public class UserServiceImpl implements UserService {
             return null;
         }
 
-        return userRepository.findByEmail(currentUserEmail)
+        return userRepository.findByEmailIgnoreCase(normalizeEmail(currentUserEmail))
                 .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase();
     }
 
     private void ensureCanManageUser(AppUser currentUser, AppUser targetUser) {

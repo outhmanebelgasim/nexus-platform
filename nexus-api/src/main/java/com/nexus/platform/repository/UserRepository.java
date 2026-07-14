@@ -12,15 +12,15 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<AppUser, Long> {
 
-    Optional<AppUser> findByEmail(String email);
+    Optional<AppUser> findByEmailIgnoreCase(String email);
 
-    Optional<AppUser> findByEmailAndRoleIn(String email, Collection<Role> roles);
+    Optional<AppUser> findByEmailIgnoreCaseAndRoleIn(String email, Collection<Role> roles);
 
     List<AppUser> findByRoleIn(Collection<Role> roles);
 
-    boolean existsByEmail(String email);
+    boolean existsByEmailIgnoreCase(String email);
 
-    boolean existsByEmailAndIdNot(String email, Long id);
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 
     @Modifying
     @Query("update AppUser user set user.createdById = null where user.createdById = :createdById")

@@ -44,8 +44,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest request) {
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(request.email(), request.password()));
-        AppUser user = findByEmail(request.email());
+        String email = normalizeEmail(request.email());
+        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, request.password()));
+        AppUser user = findByEmail(email);
         return new LoginResponse(jwtService.generateToken(user), UserMapper.toResponse(user));
     }
 
@@ -56,13 +57,14 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Passwords do not match.");
         }
 
-        if (userRepository.existsByEmail(request.email())) {
+        String email = normalizeEmail(request.email());
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateResourceException("Email already exists.");
         }
 
         AppUser user = AppUser.builder()
                 .fullName(request.fullName())
-                .email(request.email())
+                .email(email)
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .role(Role.VIEWER)
                 .status(UserStatus.ACTIVE)
@@ -78,7 +80,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AppUser findByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(normalizeEmail(email))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    private String normalizeEmail(String email) {
+        return email.trim().toLowerCase();
     }
 }

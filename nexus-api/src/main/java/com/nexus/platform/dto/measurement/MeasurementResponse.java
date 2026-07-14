@@ -6,9 +6,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record MeasurementResponse(
-        Instant time,
-        Long sensorId,
-        Double value,
+        Instant measuredAt,
+        Long variableId,
+        Double numericValue,
+        String textValue,
         MeasurementQuality quality,
         UUID importBatchId,
         Instant createdAt

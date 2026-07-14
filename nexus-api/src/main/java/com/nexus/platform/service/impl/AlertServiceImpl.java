@@ -2,12 +2,13 @@ package com.nexus.platform.service.impl;
 
 import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Alert;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.platform.dto.alert.AlertRequest;
 import com.nexus.platform.dto.alert.AlertResponse;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.AlertMapper;
 import com.nexus.platform.repository.AlertRepository;
-import com.nexus.platform.repository.SensorRepository;
+import com.nexus.platform.repository.MeasurementVariableRepository;
 import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.AlertService;
 import org.springframework.stereotype.Service;
@@ -20,16 +21,16 @@ import java.util.List;
 public class AlertServiceImpl implements AlertService {
 
     private final AlertRepository alertRepository;
-    private final SensorRepository sensorRepository;
+    private final MeasurementVariableRepository measurementVariableRepository;
     private final AccessControlService accessControlService;
 
     public AlertServiceImpl(
             AlertRepository alertRepository,
-            SensorRepository sensorRepository,
+            MeasurementVariableRepository measurementVariableRepository,
             AccessControlService accessControlService
     ) {
         this.alertRepository = alertRepository;
-        this.sensorRepository = sensorRepository;
+        this.measurementVariableRepository = measurementVariableRepository;
         this.accessControlService = accessControlService;
     }
 
@@ -44,7 +45,7 @@ public class AlertServiceImpl implements AlertService {
         if (accessControlService.hasUnrestrictedAccess(user)) {
             return findAll();
         }
-        return AlertMapper.toResponseList(alertRepository.findBySensorStationIdIn(List.copyOf(accessControlService.accessibleStationIds(user))));
+        return AlertMapper.toResponseList(alertRepository.findByMeasurementVariableStationIdIn(List.copyOf(accessControlService.accessibleStationIds(user))));
     }
 
     @Override
@@ -55,28 +56,31 @@ public class AlertServiceImpl implements AlertService {
     @Override
     public AlertResponse findById(Long id, String currentUserEmail) {
         Alert alert = findAlertById(id);
-        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), alert.getSensor().getStation().getId());
+        accessControlService.ensureStationAccess(
+                accessControlService.findUserByEmail(currentUserEmail),
+                alert.getMeasurementVariable().getStation().getId()
+        );
         return AlertMapper.toResponse(alert);
     }
 
     @Override
-    public List<AlertResponse> findBySensorId(Long sensorId) {
-        ensureSensorExists(sensorId);
-        return AlertMapper.toResponseList(alertRepository.findBySensorId(sensorId));
+    public List<AlertResponse> findByVariableId(Long variableId) {
+        ensureVariableExists(variableId);
+        return AlertMapper.toResponseList(alertRepository.findByMeasurementVariableId(variableId));
     }
 
     @Override
-    public List<AlertResponse> findBySensorId(Long sensorId, String currentUserEmail) {
-        ensureSensorExists(sensorId);
-        Long stationId = sensorRepository.findById(sensorId).orElseThrow().getStation().getId();
+    public List<AlertResponse> findByVariableId(Long variableId, String currentUserEmail) {
+        MeasurementVariable variable = findVariableById(variableId);
+        Long stationId = variable.getStation().getId();
         accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), stationId);
-        return AlertMapper.toResponseList(alertRepository.findBySensorId(sensorId));
+        return AlertMapper.toResponseList(alertRepository.findByMeasurementVariableId(variableId));
     }
 
     @Override
     @Transactional
     public AlertResponse create(AlertRequest request) {
-        ensureSensorExists(request.sensorId());
+        ensureVariableExists(resolveVariableId(request));
 
         Alert alert = AlertMapper.toEntity(request);
         return AlertMapper.toResponse(alertRepository.save(alert));
@@ -86,10 +90,10 @@ public class AlertServiceImpl implements AlertService {
     @Transactional
     public AlertResponse update(Long id, AlertRequest request) {
         Alert alert = findAlertById(id);
-        ensureSensorExists(request.sensorId());
+        ensureVariableExists(resolveVariableId(request));
 
         Alert updatedAlert = AlertMapper.toEntity(request);
-        alert.setSensor(updatedAlert.getSensor());
+        alert.setMeasurementVariable(updatedAlert.getMeasurementVariable());
         alert.setAlertType(updatedAlert.getAlertType());
         alert.setSeverity(updatedAlert.getSeverity());
         alert.setMessage(updatedAlert.getMessage());
@@ -112,9 +116,19 @@ public class AlertServiceImpl implements AlertService {
                 .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + id));
     }
 
-    private void ensureSensorExists(Long sensorId) {
-        if (!sensorRepository.existsById(sensorId)) {
-            throw new ResourceNotFoundException("Sensor not found with id: " + sensorId);
+    private void ensureVariableExists(Long variableId) {
+        findVariableById(variableId);
+    }
+
+    private MeasurementVariable findVariableById(Long variableId) {
+        if (variableId == null) {
+            throw new IllegalArgumentException("Measurement variable id is required");
         }
+        return measurementVariableRepository.findById(variableId)
+                .orElseThrow(() -> new ResourceNotFoundException("Measurement variable not found with id: " + variableId));
+    }
+
+    private Long resolveVariableId(AlertRequest request) {
+        return request.variableId() != null ? request.variableId() : request.sensorId();
     }
 }

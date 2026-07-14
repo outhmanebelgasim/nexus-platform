@@ -12,21 +12,21 @@ public interface MeasurementService {
 
     List<MeasurementResponse> findAll(String currentUserEmail);
 
-    MeasurementResponse findById(Instant time, Long sensorId);
+    MeasurementResponse findById(Instant time, Long variableId);
 
-    MeasurementResponse findById(Instant time, Long sensorId, String currentUserEmail);
+    MeasurementResponse findById(Instant time, Long variableId, String currentUserEmail);
 
-    List<MeasurementResponse> findBySensorId(Long sensorId);
+    List<MeasurementResponse> findByVariableId(Long variableId);
 
-    List<MeasurementResponse> findBySensorId(Long sensorId, String currentUserEmail, List<String> measurementTypes);
+    List<MeasurementResponse> findByVariableId(Long variableId, String currentUserEmail, List<String> measurementTypes);
 
-    List<MeasurementResponse> findBySensorIdAndTimeBetween(Long sensorId, Instant start, Instant end);
+    List<MeasurementResponse> findByVariableIdAndTimeBetween(Long variableId, Instant start, Instant end);
 
-    List<MeasurementResponse> findBySensorIdAndTimeBetween(Long sensorId, Instant start, Instant end, String currentUserEmail, List<String> measurementTypes);
+    List<MeasurementResponse> findByVariableIdAndTimeBetween(Long variableId, Instant start, Instant end, String currentUserEmail, List<String> measurementTypes);
 
     MeasurementResponse create(MeasurementRequest request);
 
-    MeasurementResponse update(Instant time, Long sensorId, MeasurementRequest request);
+    MeasurementResponse update(Instant time, Long variableId, MeasurementRequest request);
 
-    void delete(Instant time, Long sensorId);
+    void delete(Instant time, Long variableId);
 }

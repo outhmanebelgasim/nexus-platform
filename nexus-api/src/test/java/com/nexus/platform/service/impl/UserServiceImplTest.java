@@ -42,7 +42,7 @@ class UserServiceImplTest {
         AppUser admin = user(2L, "admin@nexus.local", Role.ADMIN);
         AppUser technician = user(3L, "technician@nexus.local", Role.TECHNICIAN);
 
-        when(userRepository.findByEmail(superAdmin.getEmail())).thenReturn(Optional.of(superAdmin));
+        when(userRepository.findByEmailIgnoreCase(superAdmin.getEmail())).thenReturn(Optional.of(superAdmin));
         when(userRepository.findAll()).thenReturn(List.of(superAdmin, admin, technician));
 
         assertThat(userService.findAll(superAdmin.getEmail()))
@@ -56,7 +56,7 @@ class UserServiceImplTest {
         AppUser technician = user(2L, "technician@nexus.local", Role.TECHNICIAN);
         AppUser viewer = user(3L, "viewer@nexus.local", Role.VIEWER);
 
-        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(userRepository.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
         when(userRepository.findByRoleIn(argThat(UserServiceImplTest::containsOnlyAdminManagedRoles)))
                 .thenReturn(List.of(technician, viewer));
 
@@ -72,7 +72,7 @@ class UserServiceImplTest {
         AppUser admin = user(1L, "admin@nexus.local", Role.ADMIN);
         AppUser targetAdmin = user(2L, "target-admin@nexus.local", Role.ADMIN);
 
-        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(userRepository.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
         when(userRepository.findById(targetAdmin.getId())).thenReturn(Optional.of(targetAdmin));
 
         assertThatThrownBy(() -> userService.findById(targetAdmin.getId(), admin.getEmail()))
@@ -84,7 +84,7 @@ class UserServiceImplTest {
         AppUser admin = user(1L, "admin@nexus.local", Role.ADMIN);
         AppUser superAdmin = user(2L, "super@nexus.local", Role.SUPER_ADMIN);
 
-        when(userRepository.findByEmail(admin.getEmail())).thenReturn(Optional.of(admin));
+        when(userRepository.findByEmailIgnoreCase(admin.getEmail())).thenReturn(Optional.of(admin));
         when(userRepository.findById(superAdmin.getId())).thenReturn(Optional.of(superAdmin));
 
         assertThatThrownBy(() -> userService.updateStatus(superAdmin.getId(), UserStatus.DISABLED, admin.getEmail()))

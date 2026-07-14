@@ -33,15 +33,17 @@ public class MeasurementController {
 
     @GetMapping
     public ResponseEntity<List<MeasurementResponse>> findAll(
+            @RequestParam(required = false) Long variableId,
             @RequestParam(required = false) Long sensorId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end,
             @RequestParam(required = false) List<String> measurementTypes,
             Authentication authentication
     ) {
-        if (sensorId != null && start != null && end != null) {
-            return ResponseEntity.ok(measurementService.findBySensorIdAndTimeBetween(
-                    sensorId,
+        Long requestedVariableId = variableId != null ? variableId : sensorId;
+        if (requestedVariableId != null && start != null && end != null) {
+            return ResponseEntity.ok(measurementService.findByVariableIdAndTimeBetween(
+                    requestedVariableId,
                     start,
                     end,
                     authentication.getName(),
@@ -49,20 +51,20 @@ public class MeasurementController {
             ));
         }
 
-        if (sensorId != null) {
-            return ResponseEntity.ok(measurementService.findBySensorId(sensorId, authentication.getName(), measurementTypes));
+        if (requestedVariableId != null) {
+            return ResponseEntity.ok(measurementService.findByVariableId(requestedVariableId, authentication.getName(), measurementTypes));
         }
 
         return ResponseEntity.ok(measurementService.findAll(authentication.getName()));
     }
 
-    @GetMapping("/{sensorId}/{time}")
+    @GetMapping("/{variableId}/{time}")
     public ResponseEntity<MeasurementResponse> findById(
-            @PathVariable Long sensorId,
+            @PathVariable Long variableId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant time,
             Authentication authentication
     ) {
-        return ResponseEntity.ok(measurementService.findById(time, sensorId, authentication.getName()));
+        return ResponseEntity.ok(measurementService.findById(time, variableId, authentication.getName()));
     }
 
     @PostMapping
@@ -70,21 +72,21 @@ public class MeasurementController {
         return ResponseEntity.status(HttpStatus.CREATED).body(measurementService.create(request));
     }
 
-    @PutMapping("/{sensorId}/{time}")
+    @PutMapping("/{variableId}/{time}")
     public ResponseEntity<MeasurementResponse> update(
-            @PathVariable Long sensorId,
+            @PathVariable Long variableId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant time,
             @Valid @RequestBody MeasurementRequest request
     ) {
-        return ResponseEntity.ok(measurementService.update(time, sensorId, request));
+        return ResponseEntity.ok(measurementService.update(time, variableId, request));
     }
 
-    @DeleteMapping("/{sensorId}/{time}")
+    @DeleteMapping("/{variableId}/{time}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long sensorId,
+            @PathVariable Long variableId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant time
     ) {
-        measurementService.delete(time, sensorId);
+        measurementService.delete(time, variableId);
         return ResponseEntity.noContent().build();
     }
 }

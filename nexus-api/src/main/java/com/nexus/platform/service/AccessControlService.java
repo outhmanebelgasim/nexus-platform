@@ -39,7 +39,7 @@ public class AccessControlService {
     }
 
     public AppUser findUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(email.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
     }
 

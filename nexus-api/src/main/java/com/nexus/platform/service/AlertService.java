@@ -15,9 +15,9 @@ public interface AlertService {
 
     AlertResponse findById(Long id, String currentUserEmail);
 
-    List<AlertResponse> findBySensorId(Long sensorId);
+    List<AlertResponse> findByVariableId(Long variableId);
 
-    List<AlertResponse> findBySensorId(Long sensorId, String currentUserEmail);
+    List<AlertResponse> findByVariableId(Long variableId, String currentUserEmail);
 
     AlertResponse create(AlertRequest request);
 

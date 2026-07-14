@@ -7,13 +7,14 @@ import java.time.Instant;
 
 public record MeasurementRequest(
         @NotNull
-        Long sensorId,
+        Long variableId,
 
         @NotNull
-        Instant time,
+        Instant measuredAt,
 
-        @NotNull
-        Double value,
+        Double numericValue,
+
+        String textValue,
 
         @NotNull
         MeasurementQuality quality

@@ -7,9 +7,9 @@ import java.util.List;
 
 public interface AlertRepository extends JpaRepository<Alert, Long> {
 
-    List<Alert> findBySensorId(Long sensorId);
+    List<Alert> findByMeasurementVariableId(Long variableId);
 
-    List<Alert> findBySensorStationIdIn(List<Long> stationIds);
+    List<Alert> findByMeasurementVariableStationIdIn(List<Long> stationIds);
 
     List<Alert> findByStatus(String status);
 }

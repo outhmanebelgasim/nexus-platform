@@ -9,12 +9,12 @@ import java.util.List;
 
 public interface MeasurementRepository extends JpaRepository<Measurement, MeasurementId> {
 
-    List<Measurement> findBySensorIdOrderByIdTimeDesc(Long sensorId);
+    List<Measurement> findByMeasurementVariableIdOrderByIdMeasuredAtDesc(Long variableId);
 
-    List<Measurement> findBySensorStationIdInOrderByIdTimeDesc(List<Long> stationIds);
+    List<Measurement> findByMeasurementVariableStationIdInOrderByIdMeasuredAtDesc(List<Long> stationIds);
 
-    List<Measurement> findBySensorIdAndIdTimeBetweenOrderByIdTimeAsc(
-            Long sensorId,
+    List<Measurement> findByMeasurementVariableIdAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
+            Long variableId,
             Instant start,
             Instant end
     );

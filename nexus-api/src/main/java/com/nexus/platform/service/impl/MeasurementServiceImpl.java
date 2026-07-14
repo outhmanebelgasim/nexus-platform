@@ -3,14 +3,14 @@ package com.nexus.platform.service.impl;
 import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Measurement;
 import com.nexus.domain.entity.MeasurementId;
-import com.nexus.domain.entity.Sensor;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.platform.dto.measurement.MeasurementRequest;
 import com.nexus.platform.dto.measurement.MeasurementResponse;
 import com.nexus.platform.exception.DuplicateResourceException;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.MeasurementMapper;
 import com.nexus.platform.repository.MeasurementRepository;
-import com.nexus.platform.repository.SensorRepository;
+import com.nexus.platform.repository.MeasurementVariableRepository;
 import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.MeasurementService;
 import org.springframework.stereotype.Service;
@@ -24,16 +24,16 @@ import java.util.List;
 public class MeasurementServiceImpl implements MeasurementService {
 
     private final MeasurementRepository measurementRepository;
-    private final SensorRepository sensorRepository;
+    private final MeasurementVariableRepository measurementVariableRepository;
     private final AccessControlService accessControlService;
 
     public MeasurementServiceImpl(
             MeasurementRepository measurementRepository,
-            SensorRepository sensorRepository,
+            MeasurementVariableRepository measurementVariableRepository,
             AccessControlService accessControlService
     ) {
         this.measurementRepository = measurementRepository;
-        this.sensorRepository = sensorRepository;
+        this.measurementVariableRepository = measurementVariableRepository;
         this.accessControlService = accessControlService;
     }
 
@@ -49,69 +49,69 @@ public class MeasurementServiceImpl implements MeasurementService {
             return findAll();
         }
         return MeasurementMapper.toResponseList(
-                measurementRepository.findBySensorStationIdInOrderByIdTimeDesc(List.copyOf(accessControlService.accessibleStationIds(user)))
+                measurementRepository.findByMeasurementVariableStationIdInOrderByIdMeasuredAtDesc(List.copyOf(accessControlService.accessibleStationIds(user)))
                         .stream()
-                        .filter(measurement -> canAccessSensorType(user, measurement.getSensor()))
+                        .filter(measurement -> canAccessVariableType(user, measurement.getMeasurementVariable()))
                         .toList()
         );
     }
 
     @Override
-    public MeasurementResponse findById(Instant time, Long sensorId) {
-        return MeasurementMapper.toResponse(findMeasurementById(time, sensorId));
+    public MeasurementResponse findById(Instant time, Long variableId) {
+        return MeasurementMapper.toResponse(findMeasurementById(time, variableId));
     }
 
     @Override
-    public MeasurementResponse findById(Instant time, Long sensorId, String currentUserEmail) {
-        ensureSensorAccess(sensorId, currentUserEmail);
-        return findById(time, sensorId);
+    public MeasurementResponse findById(Instant time, Long variableId, String currentUserEmail) {
+        ensureVariableAccess(variableId, currentUserEmail);
+        return findById(time, variableId);
     }
 
     @Override
-    public List<MeasurementResponse> findBySensorId(Long sensorId) {
-        ensureSensorExists(sensorId);
-        return MeasurementMapper.toResponseList(measurementRepository.findBySensorIdOrderByIdTimeDesc(sensorId));
+    public List<MeasurementResponse> findByVariableId(Long variableId) {
+        ensureVariableExists(variableId);
+        return MeasurementMapper.toResponseList(measurementRepository.findByMeasurementVariableIdOrderByIdMeasuredAtDesc(variableId));
     }
 
     @Override
-    public List<MeasurementResponse> findBySensorId(Long sensorId, String currentUserEmail, List<String> measurementTypes) {
-        ensureSensorAccess(sensorId, currentUserEmail);
+    public List<MeasurementResponse> findByVariableId(Long variableId, String currentUserEmail, List<String> measurementTypes) {
+        ensureVariableAccess(variableId, currentUserEmail);
         ensureMeasurementTypeAccess(currentUserEmail, measurementTypes);
-        ensureSensorMeasurementTypeAccess(sensorId, currentUserEmail);
-        return findBySensorId(sensorId);
+        ensureVariableMeasurementTypeAccess(variableId, currentUserEmail);
+        return findByVariableId(variableId);
     }
 
     @Override
-    public List<MeasurementResponse> findBySensorIdAndTimeBetween(Long sensorId, Instant start, Instant end) {
-        ensureSensorExists(sensorId);
+    public List<MeasurementResponse> findByVariableIdAndTimeBetween(Long variableId, Instant start, Instant end) {
+        ensureVariableExists(variableId);
         return MeasurementMapper.toResponseList(
-                measurementRepository.findBySensorIdAndIdTimeBetweenOrderByIdTimeAsc(sensorId, start, end)
+                measurementRepository.findByMeasurementVariableIdAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(variableId, start, end)
         );
     }
 
     @Override
-    public List<MeasurementResponse> findBySensorIdAndTimeBetween(
-            Long sensorId,
+    public List<MeasurementResponse> findByVariableIdAndTimeBetween(
+            Long variableId,
             Instant start,
             Instant end,
             String currentUserEmail,
             List<String> measurementTypes
     ) {
-        ensureSensorAccess(sensorId, currentUserEmail);
+        ensureVariableAccess(variableId, currentUserEmail);
         ensureMeasurementTypeAccess(currentUserEmail, measurementTypes);
-        ensureSensorMeasurementTypeAccess(sensorId, currentUserEmail);
-        return findBySensorIdAndTimeBetween(sensorId, start, end);
+        ensureVariableMeasurementTypeAccess(variableId, currentUserEmail);
+        return findByVariableIdAndTimeBetween(variableId, start, end);
     }
 
     @Override
     @Transactional
     public MeasurementResponse create(MeasurementRequest request) {
-        ensureSensorExists(request.sensorId());
+        ensureVariableExists(request.variableId());
 
-        MeasurementId id = new MeasurementId(request.time(), request.sensorId());
+        MeasurementId id = new MeasurementId(request.measuredAt(), request.variableId());
         if (measurementRepository.existsById(id)) {
-            throw new DuplicateResourceException("Measurement already exists for sensor id "
-                    + request.sensorId() + " at time " + request.time());
+            throw new DuplicateResourceException("Measurement already exists for variable id "
+                    + request.variableId() + " at time " + request.measuredAt());
         }
 
         Measurement measurement = MeasurementMapper.toEntity(request);
@@ -121,20 +121,21 @@ public class MeasurementServiceImpl implements MeasurementService {
 
     @Override
     @Transactional
-    public MeasurementResponse update(Instant time, Long sensorId, MeasurementRequest request) {
-        Measurement measurement = findMeasurementById(time, sensorId);
-        ensureSensorExists(request.sensorId());
+    public MeasurementResponse update(Instant time, Long variableId, MeasurementRequest request) {
+        Measurement measurement = findMeasurementById(time, variableId);
+        ensureVariableExists(request.variableId());
 
-        MeasurementId requestedId = new MeasurementId(request.time(), request.sensorId());
+        MeasurementId requestedId = new MeasurementId(request.measuredAt(), request.variableId());
         if (!requestedId.equals(measurement.getId()) && measurementRepository.existsById(requestedId)) {
-            throw new DuplicateResourceException("Measurement already exists for sensor id "
-                    + request.sensorId() + " at time " + request.time());
+            throw new DuplicateResourceException("Measurement already exists for variable id "
+                    + request.variableId() + " at time " + request.measuredAt());
         }
 
         Measurement updatedMeasurement = MeasurementMapper.toEntity(request);
         measurement.setId(updatedMeasurement.getId());
-        measurement.setSensor(updatedMeasurement.getSensor());
-        measurement.setValue(updatedMeasurement.getValue());
+        measurement.setMeasurementVariable(updatedMeasurement.getMeasurementVariable());
+        measurement.setNumericValue(updatedMeasurement.getNumericValue());
+        measurement.setTextValue(updatedMeasurement.getTextValue());
         measurement.setQuality(updatedMeasurement.getQuality());
 
         return MeasurementMapper.toResponse(measurementRepository.save(measurement));
@@ -142,28 +143,28 @@ public class MeasurementServiceImpl implements MeasurementService {
 
     @Override
     @Transactional
-    public void delete(Instant time, Long sensorId) {
-        Measurement measurement = findMeasurementById(time, sensorId);
+    public void delete(Instant time, Long variableId) {
+        Measurement measurement = findMeasurementById(time, variableId);
         measurementRepository.delete(measurement);
     }
 
-    private Measurement findMeasurementById(Instant time, Long sensorId) {
-        MeasurementId id = new MeasurementId(time, sensorId);
+    private Measurement findMeasurementById(Instant time, Long variableId) {
+        MeasurementId id = new MeasurementId(time, variableId);
         return measurementRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Measurement not found for sensor id "
-                        + sensorId + " at time " + time));
+                .orElseThrow(() -> new ResourceNotFoundException("Measurement not found for variable id "
+                        + variableId + " at time " + time));
     }
 
-    private void ensureSensorExists(Long sensorId) {
-        if (!sensorRepository.existsById(sensorId)) {
-            throw new ResourceNotFoundException("Sensor not found with id: " + sensorId);
+    private void ensureVariableExists(Long variableId) {
+        if (!measurementVariableRepository.existsById(variableId)) {
+            throw new ResourceNotFoundException("Measurement variable not found with id: " + variableId);
         }
     }
 
-    private void ensureSensorAccess(Long sensorId, String currentUserEmail) {
-        Sensor sensor = sensorRepository.findById(sensorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sensor not found with id: " + sensorId));
-        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), sensor.getStation().getId());
+    private void ensureVariableAccess(Long variableId, String currentUserEmail) {
+        MeasurementVariable variable = measurementVariableRepository.findById(variableId)
+                .orElseThrow(() -> new ResourceNotFoundException("Measurement variable not found with id: " + variableId));
+        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), variable.getStation().getId());
     }
 
     private void ensureMeasurementTypeAccess(String currentUserEmail, List<String> measurementTypes) {
@@ -175,18 +176,18 @@ public class MeasurementServiceImpl implements MeasurementService {
         measurementTypes.forEach(type -> accessControlService.ensureMeasurementTypeAccess(user, type));
     }
 
-    private void ensureSensorMeasurementTypeAccess(Long sensorId, String currentUserEmail) {
+    private void ensureVariableMeasurementTypeAccess(Long variableId, String currentUserEmail) {
         AppUser user = accessControlService.findUserByEmail(currentUserEmail);
-        Sensor sensor = sensorRepository.findById(sensorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Sensor not found with id: " + sensorId));
-        if (!canAccessSensorType(user, sensor)) {
-            accessControlService.ensureMeasurementTypeAccess(user, sensor.getSensorType());
+        MeasurementVariable variable = measurementVariableRepository.findById(variableId)
+                .orElseThrow(() -> new ResourceNotFoundException("Measurement variable not found with id: " + variableId));
+        if (!canAccessVariableType(user, variable)) {
+            accessControlService.ensureMeasurementTypeAccess(user, variable.getCode());
         }
     }
 
-    private boolean canAccessSensorType(AppUser user, Sensor sensor) {
+    private boolean canAccessVariableType(AppUser user, MeasurementVariable variable) {
         try {
-            accessControlService.ensureMeasurementTypeAccess(user, sensor.getSensorType());
+            accessControlService.ensureMeasurementTypeAccess(user, variable.getCode());
             return true;
         } catch (RuntimeException ex) {
             return false;

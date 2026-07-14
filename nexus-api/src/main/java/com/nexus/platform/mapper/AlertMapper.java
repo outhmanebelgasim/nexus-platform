@@ -1,7 +1,7 @@
 package com.nexus.platform.mapper;
 
 import com.nexus.domain.entity.Alert;
-import com.nexus.domain.entity.Sensor;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.platform.dto.alert.AlertRequest;
 import com.nexus.platform.dto.alert.AlertResponse;
 
@@ -18,7 +18,7 @@ public final class AlertMapper {
         }
 
         return Alert.builder()
-                .sensor(sensorReference(request.sensorId()))
+                .measurementVariable(variableReference(resolveVariableId(request)))
                 .alertType(request.alertType())
                 .severity(request.severity())
                 .message(request.message())
@@ -35,7 +35,8 @@ public final class AlertMapper {
 
         return new AlertResponse(
                 alert.getId(),
-                getSensorId(alert),
+                getVariableId(alert),
+                getVariableId(alert),
                 alert.getAlertType(),
                 alert.getSeverity(),
                 alert.getMessage(),
@@ -55,17 +56,21 @@ public final class AlertMapper {
                 .toList();
     }
 
-    private static Sensor sensorReference(Long sensorId) {
-        if (sensorId == null) {
+    private static Long resolveVariableId(AlertRequest request) {
+        return request.variableId() != null ? request.variableId() : request.sensorId();
+    }
+
+    private static MeasurementVariable variableReference(Long variableId) {
+        if (variableId == null) {
             return null;
         }
 
-        Sensor sensor = new Sensor();
-        sensor.setId(sensorId);
-        return sensor;
+        MeasurementVariable measurementVariable = new MeasurementVariable();
+        measurementVariable.setId(variableId);
+        return measurementVariable;
     }
 
-    private static Long getSensorId(Alert alert) {
-        return alert.getSensor() != null ? alert.getSensor().getId() : null;
+    private static Long getVariableId(Alert alert) {
+        return alert.getMeasurementVariable() != null ? alert.getMeasurementVariable().getId() : null;
     }
 }

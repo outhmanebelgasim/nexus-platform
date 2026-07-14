@@ -8,6 +8,7 @@ import java.time.Instant;
 public record AlertResponse(
         Long id,
         Long sensorId,
+        Long variableId,
         String alertType,
         AlertSeverity severity,
         String message,

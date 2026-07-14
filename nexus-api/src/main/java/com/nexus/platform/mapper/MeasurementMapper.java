@@ -2,7 +2,7 @@ package com.nexus.platform.mapper;
 
 import com.nexus.domain.entity.Measurement;
 import com.nexus.domain.entity.MeasurementId;
-import com.nexus.domain.entity.Sensor;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.platform.dto.measurement.MeasurementRequest;
 import com.nexus.platform.dto.measurement.MeasurementResponse;
 
@@ -18,12 +18,13 @@ public final class MeasurementMapper {
             return null;
         }
 
-        MeasurementId id = new MeasurementId(request.time(), request.sensorId());
+        MeasurementId id = new MeasurementId(request.measuredAt(), request.variableId());
 
         return Measurement.builder()
                 .id(id)
-                .sensor(sensorReference(request.sensorId()))
-                .value(request.value())
+                .measurementVariable(variableReference(request.variableId()))
+                .numericValue(request.numericValue())
+                .textValue(request.textValue())
                 .quality(request.quality())
                 .build();
     }
@@ -35,8 +36,9 @@ public final class MeasurementMapper {
 
         return new MeasurementResponse(
                 getMeasurementTime(measurement),
-                getSensorId(measurement),
-                measurement.getValue(),
+                getVariableId(measurement),
+                measurement.getNumericValue(),
+                measurement.getTextValue(),
                 measurement.getQuality(),
                 measurement.getImportBatchId(),
                 measurement.getCreatedAt()
@@ -53,25 +55,25 @@ public final class MeasurementMapper {
                 .toList();
     }
 
-    private static Sensor sensorReference(Long sensorId) {
-        if (sensorId == null) {
+    private static MeasurementVariable variableReference(Long variableId) {
+        if (variableId == null) {
             return null;
         }
 
-        Sensor sensor = new Sensor();
-        sensor.setId(sensorId);
-        return sensor;
+        MeasurementVariable measurementVariable = new MeasurementVariable();
+        measurementVariable.setId(variableId);
+        return measurementVariable;
     }
 
-    private static Long getSensorId(Measurement measurement) {
+    private static Long getVariableId(Measurement measurement) {
         if (measurement.getId() != null) {
-            return measurement.getId().getSensorId();
+            return measurement.getId().getVariableId();
         }
 
-        return measurement.getSensor() != null ? measurement.getSensor().getId() : null;
+        return measurement.getMeasurementVariable() != null ? measurement.getMeasurementVariable().getId() : null;
     }
 
     private static java.time.Instant getMeasurementTime(Measurement measurement) {
-        return measurement.getId() != null ? measurement.getId().getTime() : null;
+        return measurement.getId() != null ? measurement.getId().getMeasuredAt() : null;
     }
 }

@@ -17,7 +17,7 @@ public class CurrentUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) {
-        return userRepository.findByEmail(username)
+        return userRepository.findByEmailIgnoreCase(username.trim())
                 .map(CurrentUserDetails::new)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }

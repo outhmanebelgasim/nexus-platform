@@ -31,11 +31,13 @@ public class AlertController {
 
     @GetMapping
     public ResponseEntity<List<AlertResponse>> findAll(
+            @RequestParam(required = false) Long variableId,
             @RequestParam(required = false) Long sensorId,
             Authentication authentication
     ) {
-        if (sensorId != null) {
-            return ResponseEntity.ok(alertService.findBySensorId(sensorId, authentication.getName()));
+        Long requestedVariableId = variableId != null ? variableId : sensorId;
+        if (requestedVariableId != null) {
+            return ResponseEntity.ok(alertService.findByVariableId(requestedVariableId, authentication.getName()));
         }
 
         return ResponseEntity.ok(alertService.findAll(authentication.getName()));
