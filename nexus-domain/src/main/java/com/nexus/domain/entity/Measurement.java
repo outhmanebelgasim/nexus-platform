@@ -19,13 +19,16 @@ public class Measurement {
     @EmbeddedId
     private MeasurementId id;
 
-    @MapsId("sensorId")
+    @MapsId("variableId")
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sensor_id", nullable = false)
-    private Sensor sensor;
+    @JoinColumn(name = "variable_id", nullable = false)
+    private MeasurementVariable measurementVariable;
 
-    @Column(nullable = false)
-    private Double value;
+    @Column(name = "numeric_value")
+    private Double numericValue;
+
+    @Column(name = "text_value", columnDefinition = "TEXT")
+    private String textValue;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)

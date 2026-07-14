@@ -21,8 +21,8 @@ public class Alert {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sensor_id", nullable = false)
-    private Sensor sensor;
+    @JoinColumn(name = "variable_id", nullable = false)
+    private MeasurementVariable measurementVariable;
 
     @Column(name = "alert_type", nullable = false, length = 80)
     private String alertType;

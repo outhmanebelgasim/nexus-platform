@@ -14,9 +14,9 @@ import java.time.Instant;
 @EqualsAndHashCode
 public class MeasurementId implements Serializable {
 
-    @Column(name = "time", nullable = false)
-    private Instant time;
+    @Column(name = "measured_at", nullable = false)
+    private Instant measuredAt;
 
-    @Column(name = "sensor_id", nullable = false)
-    private Long sensorId;
+    @Column(name = "variable_id", nullable = false)
+    private Long variableId;
 }

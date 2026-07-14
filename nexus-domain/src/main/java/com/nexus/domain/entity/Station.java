@@ -49,5 +49,5 @@ public class Station {
 
     @Builder.Default
     @OneToMany(mappedBy = "station")
-    private List<Sensor> sensors = new ArrayList<>();
+    private List<MeasurementVariable> measurementVariables = new ArrayList<>();
 }
