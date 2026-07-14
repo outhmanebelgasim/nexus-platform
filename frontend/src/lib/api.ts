@@ -1,6 +1,8 @@
 import axios from "axios";
 import { clearStoredToken, getStoredToken } from "@/lib/authToken";
 
+const PUBLIC_AUTH_ENDPOINTS = new Set(["/api/auth/login", "/api/auth/register"]);
+
 function logDevelopmentError(error: unknown) {
   if (import.meta.env.DEV) {
     console.error(error);
@@ -16,7 +18,8 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const token = getStoredToken();
-  if (token) {
+  const url = typeof config.url === "string" ? config.url : "";
+  if (token && !PUBLIC_AUTH_ENDPOINTS.has(url)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -47,7 +50,7 @@ export function getApiErrorMessage(error: unknown, messages: ApiErrorMessages = 
     logDevelopmentError(error);
 
     if (!error.response) {
-      return "Unable to connect to the server. Please check your internet connection or try again later.";
+      return messages.serverError || "Unable to connect to the server. The request may be blocked by CORS or the API may be unavailable.";
     }
 
     const backendMessage = error.response.data?.message;

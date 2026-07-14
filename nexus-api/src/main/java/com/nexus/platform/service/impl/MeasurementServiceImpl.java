@@ -51,7 +51,7 @@ public class MeasurementServiceImpl implements MeasurementService {
         return MeasurementMapper.toResponseList(
                 measurementRepository.findByMeasurementVariableStationIdInOrderByIdMeasuredAtDesc(List.copyOf(accessControlService.accessibleStationIds(user)))
                         .stream()
-                        .filter(measurement -> canAccessVariableType(user, measurement.getMeasurementVariable()))
+                        .filter(measurement -> accessControlService.canAccessMeasurementVariable(user, measurement.getMeasurementVariable()))
                         .toList()
         );
     }
@@ -77,7 +77,6 @@ public class MeasurementServiceImpl implements MeasurementService {
     public List<MeasurementResponse> findByVariableId(Long variableId, String currentUserEmail, List<String> measurementTypes) {
         ensureVariableAccess(variableId, currentUserEmail);
         ensureMeasurementTypeAccess(currentUserEmail, measurementTypes);
-        ensureVariableMeasurementTypeAccess(variableId, currentUserEmail);
         return findByVariableId(variableId);
     }
 
@@ -99,8 +98,42 @@ public class MeasurementServiceImpl implements MeasurementService {
     ) {
         ensureVariableAccess(variableId, currentUserEmail);
         ensureMeasurementTypeAccess(currentUserEmail, measurementTypes);
-        ensureVariableMeasurementTypeAccess(variableId, currentUserEmail);
         return findByVariableIdAndTimeBetween(variableId, start, end);
+    }
+
+    @Override
+    public List<MeasurementResponse> findByStationIdAndVariablesAndTimeBetween(
+            Long stationId,
+            List<Long> variableIds,
+            Instant start,
+            Instant end,
+            String currentUserEmail
+    ) {
+        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        accessControlService.ensureStationAccess(user, stationId);
+
+        List<MeasurementVariable> variables = findRequestedVariables(stationId, variableIds);
+        List<Long> accessibleVariableIds = variables.stream()
+                .filter(variable -> accessControlService.canAccessMeasurementVariable(user, variable))
+                .map(MeasurementVariable::getId)
+                .toList();
+
+        if (variableIds != null && !variableIds.isEmpty() && accessibleVariableIds.size() != variables.size()) {
+            throw new org.springframework.security.access.AccessDeniedException("You do not have permission to access one or more measurement variables");
+        }
+
+        if (accessibleVariableIds.isEmpty()) {
+            return List.of();
+        }
+
+        return MeasurementMapper.toResponseList(
+                measurementRepository.findByMeasurementVariableStationIdAndMeasurementVariableIdInAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
+                        stationId,
+                        accessibleVariableIds,
+                        start,
+                        end
+                )
+        );
     }
 
     @Override
@@ -164,7 +197,7 @@ public class MeasurementServiceImpl implements MeasurementService {
     private void ensureVariableAccess(Long variableId, String currentUserEmail) {
         MeasurementVariable variable = measurementVariableRepository.findById(variableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Measurement variable not found with id: " + variableId));
-        accessControlService.ensureStationAccess(accessControlService.findUserByEmail(currentUserEmail), variable.getStation().getId());
+        accessControlService.ensureMeasurementVariableAccess(accessControlService.findUserByEmail(currentUserEmail), variable);
     }
 
     private void ensureMeasurementTypeAccess(String currentUserEmail, List<String> measurementTypes) {
@@ -176,21 +209,15 @@ public class MeasurementServiceImpl implements MeasurementService {
         measurementTypes.forEach(type -> accessControlService.ensureMeasurementTypeAccess(user, type));
     }
 
-    private void ensureVariableMeasurementTypeAccess(Long variableId, String currentUserEmail) {
-        AppUser user = accessControlService.findUserByEmail(currentUserEmail);
-        MeasurementVariable variable = measurementVariableRepository.findById(variableId)
-                .orElseThrow(() -> new ResourceNotFoundException("Measurement variable not found with id: " + variableId));
-        if (!canAccessVariableType(user, variable)) {
-            accessControlService.ensureMeasurementTypeAccess(user, variable.getCode());
+    private List<MeasurementVariable> findRequestedVariables(Long stationId, List<Long> variableIds) {
+        if (variableIds == null || variableIds.isEmpty()) {
+            return measurementVariableRepository.findByStationId(stationId);
         }
-    }
 
-    private boolean canAccessVariableType(AppUser user, MeasurementVariable variable) {
-        try {
-            accessControlService.ensureMeasurementTypeAccess(user, variable.getCode());
-            return true;
-        } catch (RuntimeException ex) {
-            return false;
+        List<MeasurementVariable> variables = measurementVariableRepository.findByStationIdAndIdIn(stationId, variableIds);
+        if (variables.size() != variableIds.stream().distinct().count()) {
+            throw new ResourceNotFoundException("One or more measurement variables were not found for station id: " + stationId);
         }
+        return variables;
     }
 }

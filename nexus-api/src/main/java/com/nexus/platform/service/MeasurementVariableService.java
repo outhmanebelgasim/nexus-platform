@@ -11,6 +11,8 @@ public interface MeasurementVariableService {
 
     List<MeasurementVariableResponse> findAll(String currentUserEmail);
 
+    List<MeasurementVariableResponse> search(Long stationId, Boolean active, String search, String currentUserEmail);
+
     MeasurementVariableResponse findById(Long id);
 
     MeasurementVariableResponse findById(Long id, String currentUserEmail);
@@ -19,5 +21,5 @@ public interface MeasurementVariableService {
 
     List<MeasurementVariableResponse> findByStationId(Long stationId, String currentUserEmail);
 
-    MeasurementVariableResponse update(Long id, MeasurementVariableRequest request);
+    MeasurementVariableResponse update(Long id, MeasurementVariableRequest request, String currentUserEmail);
 }

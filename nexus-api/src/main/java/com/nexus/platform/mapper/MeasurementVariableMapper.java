@@ -24,6 +24,7 @@ public final class MeasurementVariableMapper {
                 measurementVariable.getDescription(),
                 measurementVariable.getUnit(),
                 measurementVariable.getDataType(),
+                measurementVariable.getMeasurementType(),
                 measurementVariable.isActive(),
                 measurementVariable.getFirstSeenAt(),
                 measurementVariable.getLastSeenAt(),

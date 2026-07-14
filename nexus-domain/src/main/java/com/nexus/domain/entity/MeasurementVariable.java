@@ -1,6 +1,7 @@
 package com.nexus.domain.entity;
 
 import com.nexus.domain.enums.MeasurementVariableDataType;
+import com.nexus.domain.enums.MeasurementType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -43,6 +44,10 @@ public class MeasurementVariable {
     @Enumerated(EnumType.STRING)
     @Column(name = "data_type", nullable = false, length = 30)
     private MeasurementVariableDataType dataType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "measurement_type", length = 80)
+    private MeasurementType measurementType;
 
     @Column(nullable = false)
     private boolean active;

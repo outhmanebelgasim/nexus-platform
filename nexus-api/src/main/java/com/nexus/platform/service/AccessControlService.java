@@ -2,6 +2,7 @@ package com.nexus.platform.service;
 
 import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Farm;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.domain.entity.Station;
 import com.nexus.domain.enums.MeasurementType;
 import com.nexus.domain.enums.Role;
@@ -130,6 +131,33 @@ public class AccessControlService {
         MeasurementType type = parseMeasurementType(measurementType);
         if (!accessibleMeasurementTypes(user).contains(type)) {
             throw new AccessDeniedException("You do not have permission to access this measurement type");
+        }
+    }
+
+    public boolean canAccessMeasurementVariable(AppUser user, MeasurementVariable variable) {
+        if (variable == null || variable.getStation() == null) {
+            return false;
+        }
+
+        if (hasUnrestrictedAccess(user)) {
+            return true;
+        }
+
+        if (!accessibleStationIds(user).contains(variable.getStation().getId())) {
+            return false;
+        }
+
+        if (user.getRole() == Role.ADMIN) {
+            return true;
+        }
+
+        return variable.getMeasurementType() != null
+                && accessibleMeasurementTypes(user).contains(variable.getMeasurementType());
+    }
+
+    public void ensureMeasurementVariableAccess(AppUser user, MeasurementVariable variable) {
+        if (!canAccessMeasurementVariable(user, variable)) {
+            throw new AccessDeniedException("You do not have permission to access this measurement variable");
         }
     }
 

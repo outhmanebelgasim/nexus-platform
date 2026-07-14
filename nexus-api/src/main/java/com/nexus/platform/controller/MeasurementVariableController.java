@@ -29,13 +29,11 @@ public class MeasurementVariableController {
     @GetMapping
     public ResponseEntity<List<MeasurementVariableResponse>> findAll(
             @RequestParam(required = false) Long stationId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String search,
             Authentication authentication
     ) {
-        if (stationId != null) {
-            return ResponseEntity.ok(measurementVariableService.findByStationId(stationId, authentication.getName()));
-        }
-
-        return ResponseEntity.ok(measurementVariableService.findAll(authentication.getName()));
+        return ResponseEntity.ok(measurementVariableService.search(stationId, active, search, authentication.getName()));
     }
 
     @GetMapping("/{id}")
@@ -44,7 +42,11 @@ public class MeasurementVariableController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<MeasurementVariableResponse> update(@PathVariable Long id, @Valid @RequestBody MeasurementVariableRequest request) {
-        return ResponseEntity.ok(measurementVariableService.update(id, request));
+    public ResponseEntity<MeasurementVariableResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody MeasurementVariableRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(measurementVariableService.update(id, request, authentication.getName()));
     }
 }

@@ -1,6 +1,7 @@
 package com.nexus.platform.dto.measurementvariable;
 
 import com.nexus.domain.enums.MeasurementVariableDataType;
+import com.nexus.domain.enums.MeasurementType;
 
 import java.time.Instant;
 
@@ -12,6 +13,7 @@ public record MeasurementVariableResponse(
         String description,
         String unit,
         MeasurementVariableDataType dataType,
+        MeasurementType measurementType,
         boolean active,
         Instant firstSeenAt,
         Instant lastSeenAt,

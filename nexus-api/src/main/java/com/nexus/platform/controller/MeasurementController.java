@@ -35,11 +35,23 @@ public class MeasurementController {
     public ResponseEntity<List<MeasurementResponse>> findAll(
             @RequestParam(required = false) Long variableId,
             @RequestParam(required = false) Long sensorId,
+            @RequestParam(required = false) Long stationId,
+            @RequestParam(required = false) List<Long> variableIds,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end,
             @RequestParam(required = false) List<String> measurementTypes,
             Authentication authentication
     ) {
+        if (stationId != null && start != null && end != null) {
+            return ResponseEntity.ok(measurementService.findByStationIdAndVariablesAndTimeBetween(
+                    stationId,
+                    variableIds,
+                    start,
+                    end,
+                    authentication.getName()
+            ));
+        }
+
         Long requestedVariableId = variableId != null ? variableId : sensorId;
         if (requestedVariableId != null && start != null && end != null) {
             return ResponseEntity.ok(measurementService.findByVariableIdAndTimeBetween(

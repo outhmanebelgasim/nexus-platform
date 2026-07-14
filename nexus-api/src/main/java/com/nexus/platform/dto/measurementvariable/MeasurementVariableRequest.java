@@ -1,5 +1,6 @@
 package com.nexus.platform.dto.measurementvariable;
 
+import com.nexus.domain.enums.MeasurementType;
 import jakarta.validation.constraints.Size;
 
 public record MeasurementVariableRequest(
@@ -11,6 +12,8 @@ public record MeasurementVariableRequest(
 
         String description,
 
-        Boolean active
+        Boolean active,
+
+        MeasurementType measurementType
 ) {
 }

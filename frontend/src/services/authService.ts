@@ -9,7 +9,13 @@ export const authService = {
       storeToken(response.data.token);
       return response.data;
     } catch (error) {
-      throw new Error(getApiErrorMessage(error));
+      throw new Error(
+        getApiErrorMessage(error, {
+          unauthorized: "Invalid email or password.",
+          forbidden: "Login failed with 403 Forbidden. Check the API CORS configuration and authentication endpoint access.",
+          serverError: "Sign in is temporarily unavailable. Please try again in a few moments.",
+        }),
+      );
     }
   },
 
@@ -30,6 +36,7 @@ export const authService = {
         getApiErrorMessage(error, {
           badRequest: "Please complete all required fields.",
           conflict: "An account with this email already exists.",
+          forbidden: "Registration failed with 403 Forbidden. Check the API CORS configuration and authentication endpoint access.",
           serverError: "Something went wrong on our side. Please try again in a few moments.",
         }),
       );

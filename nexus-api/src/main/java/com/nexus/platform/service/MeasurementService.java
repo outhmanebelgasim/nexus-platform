@@ -24,6 +24,8 @@ public interface MeasurementService {
 
     List<MeasurementResponse> findByVariableIdAndTimeBetween(Long variableId, Instant start, Instant end, String currentUserEmail, List<String> measurementTypes);
 
+    List<MeasurementResponse> findByStationIdAndVariablesAndTimeBetween(Long stationId, List<Long> variableIds, Instant start, Instant end, String currentUserEmail);
+
     MeasurementResponse create(MeasurementRequest request);
 
     MeasurementResponse update(Instant time, Long variableId, MeasurementRequest request);

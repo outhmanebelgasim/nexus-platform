@@ -5,6 +5,7 @@ import com.nexus.domain.entity.MeasurementId;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 public interface MeasurementRepository extends JpaRepository<Measurement, MeasurementId> {
@@ -15,6 +16,13 @@ public interface MeasurementRepository extends JpaRepository<Measurement, Measur
 
     List<Measurement> findByMeasurementVariableIdAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
             Long variableId,
+            Instant start,
+            Instant end
+    );
+
+    List<Measurement> findByMeasurementVariableStationIdAndMeasurementVariableIdInAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
+            Long stationId,
+            Collection<Long> variableIds,
             Instant start,
             Instant end
     );
