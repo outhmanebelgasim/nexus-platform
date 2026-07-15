@@ -47,6 +47,15 @@ public class Station {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @Column(name = "discovered_by_importer", nullable = false)
+    private boolean discoveredByImporter;
+
+    @Column(name = "source_filename", length = 255)
+    private String sourceFilename;
+
+    @Column(name = "last_seen_at")
+    private Instant lastSeenAt;
+
     @Builder.Default
     @OneToMany(mappedBy = "station")
     private List<MeasurementVariable> measurementVariables = new ArrayList<>();

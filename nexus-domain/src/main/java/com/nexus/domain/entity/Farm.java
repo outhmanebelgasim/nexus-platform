@@ -30,6 +30,9 @@ public class Farm {
     @Column(name = "google_maps_url", columnDefinition = "TEXT")
     private String googleMapsUrl;
 
+    @Column(name = "system_key", unique = true, length = 100)
+    private String systemKey;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
