@@ -6,13 +6,13 @@ import { exportMeasurementsAsCsv } from "@/components/measurement-chart/chartUti
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { ChartType, Measurement } from "@/types/measurement";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 import { formatDateTime } from "@/utils/format";
 
 interface MeasurementChartProps {
   chartType: ChartType;
   measurements: Measurement[];
-  sensors: Sensor[];
+  variables: MeasurementVariable[];
   series: ChartSeries[];
 }
 
@@ -50,7 +50,7 @@ function resolvedThemeColor(token: string) {
   return value ? `hsl(${value})` : themeColor(token);
 }
 
-export function MeasurementChart({ chartType, measurements, sensors, series }: MeasurementChartProps) {
+export function MeasurementChart({ chartType, measurements, variables, series }: MeasurementChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
   const [zoom, setZoom] = useState(1);
@@ -135,7 +135,7 @@ export function MeasurementChart({ chartType, measurements, sensors, series }: M
   };
 
   const exportCsv = () => {
-    downloadFile("measurements-analytics.csv", exportMeasurementsAsCsv(measurements, sensors), "text/csv;charset=utf-8");
+    downloadFile("measurements-analytics.csv", exportMeasurementsAsCsv(measurements, variables), "text/csv;charset=utf-8");
   };
 
   const exportPng = async () => {

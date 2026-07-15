@@ -1,8 +1,7 @@
 import type { Farm } from "@/types/farm";
-import type { SensorStatus } from "@/types/sensor";
 import type { Station, StationStatus } from "@/types/station";
 
-export function formatStatus(value: StationStatus | SensorStatus) {
+export function formatStatus(value: StationStatus) {
   return value
     .toLowerCase()
     .split("_")

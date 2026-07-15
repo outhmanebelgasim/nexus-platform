@@ -12,15 +12,15 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFarms } from "@/hooks/useFarms";
 import { useMeasurementAnalytics } from "@/hooks/useMeasurementAnalytics";
-import { useSensors } from "@/hooks/useSensors";
+import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
 import { userService } from "@/services/userService";
 import type { MeasurementAnalyticsFilters } from "@/types/measurement";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 import type { UserPermissions } from "@/types/user";
 
 const initialFilters: MeasurementAnalyticsFilters = {
-  sensorIds: [],
+  variableIds: [],
   measurementTypes: [],
   timeRange: "24h",
   chartType: "line",
@@ -35,14 +35,14 @@ function toIsoDateTime(value?: string) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : undefined;
 }
 
-function filterSensorsByScope(sensors: Sensor[], stationById: Map<number, { farmId: number }>, filters: MeasurementAnalyticsFilters) {
-  return sensors.filter((sensor) => {
-    const station = stationById.get(sensor.stationId);
+function filterVariablesByScope(variables: MeasurementVariable[], stationById: Map<number, { farmId: number }>, filters: MeasurementAnalyticsFilters) {
+  return variables.filter((variable) => {
+    const station = stationById.get(variable.stationId);
     const matchesFarm = !filters.farmId || station?.farmId === filters.farmId;
-    const matchesStation = !filters.stationId || sensor.stationId === filters.stationId;
-    const matchesExplicitSensor = filters.sensorIds.length === 0 || filters.sensorIds.includes(sensor.id);
-    const matchesType = filters.measurementTypes.length === 0 || filters.measurementTypes.includes(sensor.sensorType);
-    return matchesFarm && matchesStation && matchesExplicitSensor && matchesType;
+    const matchesStation = !filters.stationId || variable.stationId === filters.stationId;
+    const matchesExplicitVariable = filters.variableIds.length === 0 || filters.variableIds.includes(variable.id);
+    const matchesType = filters.measurementTypes.length === 0 || Boolean(variable.measurementType && filters.measurementTypes.includes(variable.measurementType));
+    return matchesFarm && matchesStation && matchesExplicitVariable && matchesType && variable.active;
   });
 }
 
@@ -53,7 +53,7 @@ export function MeasurementsPage() {
   const [permissionsError, setPermissionsError] = useState<string | null>(null);
   const { farms, error: farmsError } = useFarms();
   const { stations, error: stationsError } = useStations();
-  const { sensors, error: sensorsError } = useSensors();
+  const { variables, error: variablesError } = useMeasurementVariables();
   const { measurements, isLoading, error, hasGenerated, generateChart } = useMeasurementAnalytics();
 
   useEffect(() => {
@@ -91,40 +91,43 @@ export function MeasurementsPage() {
     () => (!permissions || permissions.role === "SUPER_ADMIN" ? stations : stations.filter((station) => allowedStationIds.has(station.id))),
     [allowedStationIds, permissions, stations],
   );
-  const visibleSensors = useMemo(
-    () => (!permissions || permissions.role === "SUPER_ADMIN" ? sensors : sensors.filter((sensor) => allowedStationIds.has(sensor.stationId))),
-    [allowedStationIds, permissions, sensors],
+  const visibleVariables = useMemo(
+    () => (!permissions || permissions.role === "SUPER_ADMIN" ? variables : variables.filter((variable) => allowedStationIds.has(variable.stationId))),
+    [allowedStationIds, permissions, variables],
   );
-  const scopedSensors = useMemo(
-    () => filterSensorsByScope(visibleSensors, stationById, { ...filters, measurementTypes: [] }),
-    [filters, stationById, visibleSensors],
+  const scopedVariables = useMemo(
+    () => filterVariablesByScope(visibleVariables, stationById, { ...filters, measurementTypes: [] }),
+    [filters, stationById, visibleVariables],
   );
   const measurementTypeOptions = useMemo(() => {
-    const inventoryTypes = getMeasurementTypeOptions(scopedSensors);
+    const inventoryTypes = getMeasurementTypeOptions(scopedVariables);
     if (!permissions || permissions.role === "SUPER_ADMIN") {
       return inventoryTypes;
     }
     return inventoryTypes.filter((type) => allowedMeasurementTypes.has(type));
-  }, [allowedMeasurementTypes, permissions, scopedSensors]);
-  const selectedSensors = useMemo(
-    () => filterSensorsByScope(visibleSensors, stationById, filters),
-    [filters, stationById, visibleSensors],
+  }, [allowedMeasurementTypes, permissions, scopedVariables]);
+  const selectedVariables = useMemo(
+    () => filterVariablesByScope(visibleVariables, stationById, filters),
+    [filters, stationById, visibleVariables],
   );
   const filteredMeasurements = useMemo(() => {
-    const selectedSensorIds = new Set(selectedSensors.map((sensor) => sensor.id));
-    return measurements.filter((measurement) => selectedSensorIds.has(measurement.sensorId));
-  }, [measurements, selectedSensors]);
+    const selectedVariableIds = new Set(selectedVariables.map((variable) => variable.id));
+    return measurements.filter((measurement) => selectedVariableIds.has(measurement.variableId));
+  }, [measurements, selectedVariables]);
   const chartSeries = useMemo(
-    () => buildSeries(filteredMeasurements, selectedSensors, filters.measurementTypes),
-    [filteredMeasurements, filters.measurementTypes, selectedSensors],
+    () => buildSeries(filteredMeasurements, selectedVariables),
+    [filteredMeasurements, selectedVariables],
   );
 
   const visibleSeriesCount = chartSeries.filter((series) => series.points.length > 0).length;
-  const latestMeasurement = [...filteredMeasurements].sort((first, second) => first.time.localeCompare(second.time)).at(-1);
+  const latestMeasurement = [...filteredMeasurements].sort((first, second) => first.measuredAt.localeCompare(second.measuredAt)).at(-1);
   const averageValue =
     filteredMeasurements.length === 0
       ? "No data"
-      : (filteredMeasurements.reduce((total, measurement) => total + measurement.value, 0) / filteredMeasurements.length).toLocaleString(undefined, {
+      : (
+          filteredMeasurements.reduce((total, measurement) => total + (measurement.numericValue ?? 0), 0) /
+          Math.max(filteredMeasurements.filter((measurement) => measurement.numericValue !== null).length, 1)
+        ).toLocaleString(undefined, {
           maximumFractionDigits: 2,
         });
 
@@ -136,8 +139,8 @@ export function MeasurementsPage() {
   const handleGenerateChart = async () => {
     setValidationError(null);
 
-    if (filters.measurementTypes.length === 0) {
-      setValidationError("Select at least one measurement type before generating a chart.");
+    if (!filters.stationId) {
+      setValidationError("Select a station before generating a chart.");
       return;
     }
 
@@ -147,9 +150,9 @@ export function MeasurementsPage() {
       return;
     }
 
-    const querySensors = filterSensorsByScope(visibleSensors, stationById, filters);
-    if (querySensors.length === 0) {
-      setValidationError("No sensors match the selected farm, station and measurement type combination.");
+    const queryVariables = filterVariablesByScope(visibleVariables, stationById, filters);
+    if (queryVariables.length === 0) {
+      setValidationError("No active variables match the selected station and measurement type filters.");
       return;
     }
 
@@ -174,7 +177,7 @@ export function MeasurementsPage() {
         start: range.start,
         end: range.end,
       },
-      querySensors.map((sensor) => sensor.id),
+      queryVariables.map((variable) => variable.id),
     );
   };
 
@@ -188,19 +191,19 @@ export function MeasurementsPage() {
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard title="Generated readings" value={filteredMeasurements.length} description="Returned by the latest query" icon={Database} />
-          <MetricCard title="Selected sensors" value={selectedSensors.length} description="Sensors matching current filters" icon={RadioTower} />
-          <MetricCard title="Visible series" value={visibleSeriesCount} description="Measurement types with chart data" icon={LineChart} />
+          <MetricCard title="Selected variables" value={selectedVariables.length} description="Variables matching current filters" icon={RadioTower} />
+          <MetricCard title="Visible series" value={visibleSeriesCount} description="Variables with chart data" icon={LineChart} />
           <MetricCard title="Average value" value={averageValue} description={latestMeasurement ? "Across generated readings" : "Generate a chart to analyze"} icon={Activity} />
         </div>
       </PageHeader>
 
-      {farmsError || stationsError || sensorsError || permissionsError ? <Alert>{farmsError ?? stationsError ?? sensorsError ?? permissionsError}</Alert> : null}
+      {farmsError || stationsError || variablesError || permissionsError ? <Alert>{farmsError ?? stationsError ?? variablesError ?? permissionsError}</Alert> : null}
 
       <ChartBuilder
         filters={filters}
         farms={scopedFarms}
         stations={scopedStations}
-        sensors={visibleSensors}
+        variables={visibleVariables}
         measurementTypes={measurementTypeOptions}
         isLoading={isLoading}
         error={validationError}
@@ -236,7 +239,7 @@ export function MeasurementsPage() {
           <MeasurementChart
             chartType={filters.chartType}
             measurements={filteredMeasurements}
-            sensors={selectedSensors}
+            variables={selectedVariables}
             series={chartSeries}
           />
 
@@ -246,7 +249,7 @@ export function MeasurementsPage() {
               <CardDescription>{filteredMeasurements.length.toLocaleString()} readings returned by the latest chart query</CardDescription>
             </CardHeader>
             <CardContent>
-              <MeasurementTable measurements={filteredMeasurements} sensors={selectedSensors} />
+              <MeasurementTable measurements={filteredMeasurements} variables={selectedVariables} />
             </CardContent>
           </Card>
         </>

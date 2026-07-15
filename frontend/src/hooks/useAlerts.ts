@@ -3,7 +3,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { alertService } from "@/services/alertService";
 import type { AlertEvent } from "@/types/alert";
 
-export function useAlerts(sensorId?: number, enabled = true) {
+export function useAlerts(variableId?: number, enabled = true) {
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -13,14 +13,14 @@ export function useAlerts(sensorId?: number, enabled = true) {
     setError(null);
 
     try {
-      const data = await alertService.findAll(sensorId);
+      const data = await alertService.findAll(variableId);
       setAlerts(data);
     } catch (loadError) {
       setError(getApiErrorMessage(loadError));
     } finally {
       setIsLoading(false);
     }
-  }, [sensorId]);
+  }, [variableId]);
 
   useEffect(() => {
     let ignore = false;
@@ -37,7 +37,7 @@ export function useAlerts(sensorId?: number, enabled = true) {
       setError(null);
 
       try {
-        const data = await alertService.findAll(sensorId);
+        const data = await alertService.findAll(variableId);
         if (!ignore) {
           setAlerts(data);
         }
@@ -57,7 +57,7 @@ export function useAlerts(sensorId?: number, enabled = true) {
     return () => {
       ignore = true;
     };
-  }, [enabled, sensorId]);
+  }, [enabled, variableId]);
 
   return { alerts, isLoading, error, loadAlerts };
 }

@@ -7,7 +7,9 @@ export const measurementService = {
   async findAll(filters: MeasurementFilters = {}) {
     const response = await apiClient.get<Measurement[]>(MEASUREMENTS_ENDPOINT, {
       params: {
-        sensorId: filters.sensorId,
+        variableId: filters.variableId,
+        stationId: filters.stationId,
+        variableIds: filters.variableIds,
         start: filters.start,
         end: filters.end,
         measurementTypes: filters.measurementTypes,
@@ -16,15 +18,19 @@ export const measurementService = {
     return response.data;
   },
 
-  async findAnalytics(filters: MeasurementFilters & { sensorIds?: number[] } = {}) {
-    if (!filters.sensorIds || filters.sensorIds.length === 0) {
+  async findAnalytics(filters: MeasurementFilters = {}) {
+    if (filters.stationId && filters.start && filters.end) {
+      return this.findAll(filters);
+    }
+
+    if (!filters.variableIds || filters.variableIds.length === 0) {
       return this.findAll(filters);
     }
 
     const responses = await Promise.all(
-      filters.sensorIds.map((sensorId) =>
+      filters.variableIds.map((variableId) =>
         this.findAll({
-          sensorId,
+          variableId,
           start: filters.start,
           end: filters.end,
           measurementTypes: filters.measurementTypes,

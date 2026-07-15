@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useFarms } from "@/hooks/useFarms";
 import { useImportLogs } from "@/hooks/useImportLogs";
 import { useMeasurements } from "@/hooks/useMeasurements";
-import { useSensors } from "@/hooks/useSensors";
+import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
 import { getApiErrorMessage } from "@/lib/api";
 import { alertService } from "@/services/alertService";
@@ -26,7 +26,7 @@ export function DashboardPage() {
 
   const { farms } = useFarms(canViewFarmTotals);
   const { stations } = useStations();
-  const { sensors } = useSensors();
+  const { variables } = useMeasurementVariables();
   const { alerts } = useAlerts(undefined, !shouldApplyAssignments);
   const { measurements } = useMeasurements({}, !shouldApplyAssignments);
   const { importLogs } = useImportLogs(canViewImporterStatus);
@@ -40,11 +40,11 @@ export function DashboardPage() {
     [assignedStationIds, shouldApplyAssignments, stations],
   );
   const scopedStationIds = useMemo(() => new Set(scopedStations.map((station) => station.id)), [scopedStations]);
-  const scopedSensors = useMemo(
-    () => (shouldApplyAssignments ? sensors.filter((sensor) => scopedStationIds.has(sensor.stationId)) : sensors),
-    [scopedStationIds, sensors, shouldApplyAssignments],
+  const scopedVariables = useMemo(
+    () => (shouldApplyAssignments ? variables.filter((variable) => scopedStationIds.has(variable.stationId)) : variables),
+    [scopedStationIds, shouldApplyAssignments, variables],
   );
-  const scopedSensorIds = useMemo(() => scopedSensors.map((sensor) => sensor.id), [scopedSensors]);
+  const scopedVariableIds = useMemo(() => scopedVariables.map((variable) => variable.id), [scopedVariables]);
 
   useEffect(() => {
     let ignore = false;
@@ -57,18 +57,18 @@ export function DashboardPage() {
         return;
       }
 
-      if (scopedSensorIds.length === 0) {
+      if (scopedVariableIds.length === 0) {
         setAssignedAlerts([]);
         setAssignedMeasurements([]);
-        setAssignedTelemetryError(null);
+          setAssignedTelemetryError(null);
         return;
       }
 
       try {
         setAssignedTelemetryError(null);
         const [nextMeasurements, alertResponses] = await Promise.all([
-          measurementService.findAnalytics({ sensorIds: scopedSensorIds }),
-          Promise.all(scopedSensorIds.map((sensorId) => alertService.findAll(sensorId))),
+          measurementService.findAnalytics({ variableIds: scopedVariableIds }),
+          Promise.all(scopedVariableIds.map((variableId) => alertService.findAll(variableId))),
         ]);
 
         if (!ignore) {
@@ -89,17 +89,18 @@ export function DashboardPage() {
     return () => {
       ignore = true;
     };
-  }, [scopedSensorIds, shouldApplyAssignments]);
+  }, [scopedVariableIds, shouldApplyAssignments]);
 
   const scopedAlerts = shouldApplyAssignments ? assignedAlerts : alerts;
   const scopedMeasurements = shouldApplyAssignments ? assignedMeasurements : measurements;
 
   const activeStations = scopedStations.filter((station) => station.status === "ACTIVE").length;
-  const activeSensors = scopedSensors.filter((sensor) => sensor.status === "ACTIVE").length;
-  const healthySensors = scopedSensors.length === 0 ? 0 : Math.round((activeSensors / scopedSensors.length) * 100);
+  const activeVariables = scopedVariables.filter((variable) => variable.active).length;
+  const configuredVariables = scopedVariables.filter((variable) => variable.measurementType).length;
+  const variableConfiguration = scopedVariables.length === 0 ? 0 : Math.round((configuredVariables / scopedVariables.length) * 100);
   const openAlerts = scopedAlerts.filter((alert) => alert.status === "OPEN").length;
   const latestMeasurementTime = scopedMeasurements
-    .map((measurement) => measurement.time)
+    .map((measurement) => measurement.measuredAt)
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
@@ -108,14 +109,14 @@ export function DashboardPage() {
     .filter((value): value is string => Boolean(value))
     .sort()
     .at(-1);
-  const hasAuthorizedMonitoringData = scopedStations.length > 0 || scopedSensors.length > 0 || scopedMeasurements.length > 0 || scopedAlerts.length > 0;
+  const hasAuthorizedMonitoringData = scopedStations.length > 0 || scopedVariables.length > 0 || scopedMeasurements.length > 0 || scopedAlerts.length > 0;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="NEXUS Smart Agriculture Platform"
         title="Agricultural Monitoring & Decision Support System"
-        description="Monitor farms, weather stations, environmental sensors and agricultural telemetry in real time."
+        description="Monitor farms, weather stations, measurement variables and agricultural telemetry in real time."
         icon={Activity}
       />
 
@@ -124,7 +125,7 @@ export function DashboardPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {canViewFarmTotals ? <MetricCard title="Total farms" value={farms.length} description="Registered agricultural sites" icon={Sprout} /> : null}
         <MetricCard title="Total weather stations" value={scopedStations.length} description="Authorized field stations" icon={RadioTower} />
-        <MetricCard title="Active sensors" value={activeSensors} description="Sensors currently available" icon={Cpu} />
+        <MetricCard title="Active variables" value={activeVariables} description="Variables currently available" icon={Cpu} />
         <MetricCard title="Open alerts" value={openAlerts} description="Generated alerts requiring attention" icon={Bell} />
         <MetricCard
           title="Latest measurement"
@@ -132,7 +133,7 @@ export function DashboardPage() {
           description="Most recent telemetry reading"
           icon={Waves}
         />
-        <MetricCard title="Sensor health" value={`${healthySensors}%`} description="Share of active authorized sensors" icon={Activity} />
+        <MetricCard title="Variable mapping" value={`${variableConfiguration}%`} description="Share of authorized variables with semantic types" icon={Activity} />
         {canViewImporterStatus ? (
           <MetricCard
             title="Latest importer run"
@@ -146,7 +147,7 @@ export function DashboardPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>{canViewFarmTotals ? "Platform overview" : "Monitoring overview"}</CardTitle>
-          <CardDescription>Operational readiness across authorized stations and sensors.</CardDescription>
+          <CardDescription>Operational readiness across authorized stations and variables.</CardDescription>
         </CardHeader>
         <CardContent>
           {hasAuthorizedMonitoringData ? (
@@ -157,16 +158,16 @@ export function DashboardPage() {
                 <p className="mt-1 text-sm text-muted-foreground">Authorized stations marked active and ready for field data.</p>
               </div>
               <div className="rounded-md border bg-background p-4">
-                <p className="text-sm font-medium">Sensor coverage</p>
-                <p className="mt-2 text-3xl font-semibold">{scopedSensors.length}</p>
-                <p className="mt-1 text-sm text-muted-foreground">Environmental sensors available in the authorized station scope.</p>
+                <p className="text-sm font-medium">Variable coverage</p>
+                <p className="mt-2 text-3xl font-semibold">{scopedVariables.length}</p>
+                <p className="mt-1 text-sm text-muted-foreground">Measurement variables available in the authorized station scope.</p>
               </div>
             </div>
           ) : (
             <div className="rounded-md border bg-background p-6">
               <p className="text-sm font-medium">No authorized monitoring data</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Your account does not currently have assigned stations, sensors, measurements or alerts to display.
+                Your account does not currently have assigned stations, variables, measurements or alerts to display.
               </p>
             </div>
           )}

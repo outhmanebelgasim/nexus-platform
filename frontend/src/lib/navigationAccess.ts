@@ -8,7 +8,7 @@ export const navigationAccess = {
   dashboard: ALL_AUTHENTICATED_ROLES,
   farms: ADMINISTRATION_ROLES,
   stations: ALL_AUTHENTICATED_ROLES,
-  sensors: ALL_AUTHENTICATED_ROLES,
+  variables: ALL_AUTHENTICATED_ROLES,
   measurements: ALL_AUTHENTICATED_ROLES,
   alerts: ALL_AUTHENTICATED_ROLES,
   importLogs: OPERATIONAL_ROLES,

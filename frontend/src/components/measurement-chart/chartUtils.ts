@@ -1,5 +1,5 @@
 import type { Measurement, MeasurementAnalyticsFilters, TimeRangePreset } from "@/types/measurement";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 
 export const analyticsPalette = [
   "hsl(var(--chart-1))",
@@ -57,34 +57,34 @@ export function resolveTimeRange(filters: MeasurementAnalyticsFilters) {
   };
 }
 
-export function getMeasurementTypeOptions(sensors: Sensor[]) {
-  return Array.from(new Set(sensors.map((sensor) => sensor.sensorType).filter(Boolean))).sort((first, second) =>
-    first.localeCompare(second),
-  );
+export function getMeasurementTypeOptions(variables: MeasurementVariable[]) {
+  return Array.from(
+    new Set(variables.map((variable) => variable.measurementType).filter((value): value is NonNullable<typeof value> => value !== null)),
+  ).sort((first, second) => first.localeCompare(second));
 }
 
-export function buildSeries(measurements: Measurement[], sensors: Sensor[], measurementTypes: string[]) {
-  const sensorById = new Map(sensors.map((sensor) => [sensor.id, sensor]));
-  const selectedTypes = new Set(measurementTypes);
+export function getVariableLabel(variable: MeasurementVariable) {
+  return variable.displayName?.trim() || variable.code;
+}
 
-  return measurementTypes.map<ChartSeries>((measurementType, index) => {
+export function buildSeries(measurements: Measurement[], variables: MeasurementVariable[]) {
+  return variables.map<ChartSeries>((variable, index) => {
     const grouped = new Map<number, { time: string; total: number; count: number }>();
 
     measurements.forEach((measurement) => {
-      const sensor = sensorById.get(measurement.sensorId);
-      if (!sensor || sensor.sensorType !== measurementType || !selectedTypes.has(sensor.sensorType)) {
+      if (measurement.variableId !== variable.id || !Number.isFinite(measurement.numericValue ?? Number.NaN)) {
         return;
       }
 
-      const timestamp = new Date(measurement.time).getTime();
-      if (!Number.isFinite(timestamp) || !Number.isFinite(measurement.value)) {
+      const timestamp = new Date(measurement.measuredAt).getTime();
+      if (!Number.isFinite(timestamp)) {
         return;
       }
 
-      const current = grouped.get(timestamp) ?? { time: measurement.time, total: 0, count: 0 };
+      const current = grouped.get(timestamp) ?? { time: measurement.measuredAt, total: 0, count: 0 };
       grouped.set(timestamp, {
         time: current.time,
-        total: current.total + measurement.value,
+        total: current.total + (measurement.numericValue ?? 0),
         count: current.count + 1,
       });
     });
@@ -98,25 +98,26 @@ export function buildSeries(measurements: Measurement[], sensors: Sensor[], meas
       .sort((first, second) => first.timestamp - second.timestamp);
 
     return {
-      id: measurementType,
-      label: measurementType,
+      id: String(variable.id),
+      label: getVariableLabel(variable),
       color: analyticsPalette[index % analyticsPalette.length],
       points,
     };
   });
 }
 
-export function exportMeasurementsAsCsv(measurements: Measurement[], sensors: Sensor[]) {
-  const sensorById = new Map(sensors.map((sensor) => [sensor.id, sensor]));
-  const header = ["time", "sensorId", "sensorCode", "measurementType", "value", "quality", "importBatchId"];
+export function exportMeasurementsAsCsv(measurements: Measurement[], variables: MeasurementVariable[]) {
+  const variableById = new Map(variables.map((variable) => [variable.id, variable]));
+  const header = ["measuredAt", "variableId", "variableCode", "measurementType", "numericValue", "textValue", "quality", "importBatchId"];
   const rows = measurements.map((measurement) => {
-    const sensor = sensorById.get(measurement.sensorId);
+    const variable = variableById.get(measurement.variableId);
     return [
-      measurement.time,
-      String(measurement.sensorId),
-      sensor?.code ?? "",
-      sensor?.sensorType ?? "",
-      String(measurement.value),
+      measurement.measuredAt,
+      String(measurement.variableId),
+      variable?.code ?? "",
+      variable?.measurementType ?? "",
+      measurement.numericValue === null ? "" : String(measurement.numericValue),
+      measurement.textValue ?? "",
       measurement.quality,
       measurement.importBatchId ?? "",
     ];

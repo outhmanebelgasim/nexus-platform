@@ -4,9 +4,9 @@ import type { AlertEvent } from "@/types/alert";
 const ALERTS_ENDPOINT = "/api/alerts";
 
 export const alertService = {
-  async findAll(sensorId?: number) {
+  async findAll(variableId?: number) {
     const response = await apiClient.get<AlertEvent[]>(ALERTS_ENDPOINT, {
-      params: sensorId ? { sensorId } : undefined,
+      params: variableId ? { sensorId: variableId } : undefined,
     });
     return response.data;
   },

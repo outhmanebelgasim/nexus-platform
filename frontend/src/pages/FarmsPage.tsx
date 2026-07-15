@@ -11,7 +11,7 @@ import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useFarms } from "@/hooks/useFarms";
-import { useSensors } from "@/hooks/useSensors";
+import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,7 +24,7 @@ export function FarmsPage() {
   const { farms, isLoading, isSaving, error, loadFarms, createFarm, updateFarm, deleteFarm } = useFarms();
   const { hasRole } = useAuth();
   const { stations } = useStations();
-  const { sensors } = useSensors();
+  const { variables } = useMeasurementVariables();
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
   const [farmToDelete, setFarmToDelete] = useState<Farm | null>(null);
@@ -156,7 +156,7 @@ export function FarmsPage() {
       <PageHeader
         eyebrow="Farm Network"
         title="Agricultural sites"
-        description="Manage the farms that anchor field stations, sensor deployments and telemetry coverage."
+        description="Manage the farms that anchor field stations, measurement variables and telemetry coverage."
         icon={Sprout}
         actions={
           <>
@@ -175,7 +175,7 @@ export function FarmsPage() {
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard title="Total farms" value={farms.length} description="Registered farm sites" icon={Sprout} />
           <MetricCard title="Active stations" value={activeStations} description="Operational station records" icon={RadioTower} />
-          <MetricCard title="Connected sensors" value={sensors.length} description="Sensors across all stations" icon={Cpu} />
+          <MetricCard title="Measurement variables" value={variables.length} description="Variables across all stations" icon={Cpu} />
           <MetricCard title="Latest update" value={latestUpdate} description="Most recent farm record change" icon={CalendarClock} />
         </div>
       </PageHeader>

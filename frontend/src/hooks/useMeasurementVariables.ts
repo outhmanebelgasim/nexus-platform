@@ -1,26 +1,29 @@
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage } from "@/lib/api";
-import { sensorService } from "@/services/sensorService";
-import type { Sensor } from "@/types/sensor";
+import { measurementVariableService, type MeasurementVariableFilters } from "@/services/measurementVariableService";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 
-export function useSensors(stationId?: number) {
-  const [sensors, setSensors] = useState<Sensor[]>([]);
+export function useMeasurementVariables(filters: MeasurementVariableFilters = {}) {
+  const [variables, setVariables] = useState<MeasurementVariable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSensors = useCallback(async () => {
+  const stationId = filters.stationId;
+  const active = filters.active;
+  const search = filters.search;
+
+  const loadVariables = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const data = await sensorService.findAll(stationId);
-      setSensors(data);
+      setVariables(await measurementVariableService.findAll({ stationId, active, search }));
     } catch (loadError) {
       setError(getApiErrorMessage(loadError));
     } finally {
       setIsLoading(false);
     }
-  }, [stationId]);
+  }, [active, search, stationId]);
 
   useEffect(() => {
     let ignore = false;
@@ -30,9 +33,9 @@ export function useSensors(stationId?: number) {
       setError(null);
 
       try {
-        const data = await sensorService.findAll(stationId);
+        const data = await measurementVariableService.findAll({ stationId, active, search });
         if (!ignore) {
-          setSensors(data);
+          setVariables(data);
         }
       } catch (loadError) {
         if (!ignore) {
@@ -50,12 +53,13 @@ export function useSensors(stationId?: number) {
     return () => {
       ignore = true;
     };
-  }, [stationId]);
+  }, [active, search, stationId]);
 
   return {
-    sensors,
+    variables,
     isLoading,
     error,
-    loadSensors,
+    loadVariables,
+    setVariables,
   };
 }

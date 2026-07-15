@@ -1,25 +1,26 @@
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { AlertEvent } from "@/types/alert";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 import { formatDateTime } from "@/utils/format";
 
 interface AlertTableProps {
   alerts: AlertEvent[];
-  sensors: Sensor[];
+  variables: MeasurementVariable[];
 }
 
-function getSensorCode(sensors: Sensor[], sensorId: number) {
-  return sensors.find((sensor) => sensor.id === sensorId)?.code ?? `Sensor #${sensorId}`;
+function getVariableCode(variables: MeasurementVariable[], variableId: number) {
+  const variable = variables.find((item) => item.id === variableId);
+  return variable?.displayName || variable?.code || `Variable #${variableId}`;
 }
 
-export function AlertTable({ alerts, sensors }: AlertTableProps) {
+export function AlertTable({ alerts, variables }: AlertTableProps) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Alert</TableHead>
-          <TableHead>Sensor</TableHead>
+          <TableHead>Variable</TableHead>
           <TableHead>Severity</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Triggered</TableHead>
@@ -33,7 +34,7 @@ export function AlertTable({ alerts, sensors }: AlertTableProps) {
               <p className="font-medium">{alert.alertType}</p>
               <p className="max-w-xl text-sm text-muted-foreground">{alert.message}</p>
             </TableCell>
-            <TableCell>{getSensorCode(sensors, alert.sensorId)}</TableCell>
+            <TableCell>{getVariableCode(variables, alert.variableId ?? alert.sensorId)}</TableCell>
             <TableCell>
               <OperationalBadge value={alert.severity} />
             </TableCell>

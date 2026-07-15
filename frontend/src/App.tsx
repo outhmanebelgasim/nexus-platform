@@ -7,12 +7,12 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { FarmsPage } from "@/pages/FarmsPage";
 import { ImportLogsPage } from "@/pages/ImportLogsPage";
 import { MeasurementsPage } from "@/pages/MeasurementsPage";
-import { SensorsPage } from "@/pages/SensorsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { StationsPage } from "@/pages/StationsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { VariablesPage } from "@/pages/VariablesPage";
 
 export default function App() {
   return (
@@ -27,7 +27,8 @@ export default function App() {
             <Route path="/farms" element={<FarmsPage />} />
           </Route>
           <Route path="/stations" element={<StationsPage />} />
-          <Route path="/sensors" element={<SensorsPage />} />
+          <Route path="/variables" element={<VariablesPage />} />
+          <Route path="/sensors" element={<Navigate to="/variables" replace />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route element={<ProtectedRoute roles={navigationAccess.importLogs} />}>

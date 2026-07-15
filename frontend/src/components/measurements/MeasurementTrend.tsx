@@ -6,17 +6,17 @@ interface MeasurementTrendProps {
 
 export function MeasurementTrend({ measurements }: MeasurementTrendProps) {
   const sortedMeasurements = [...measurements]
-    .filter((measurement) => Number.isFinite(measurement.value))
-    .sort((first, second) => new Date(first.time).getTime() - new Date(second.time).getTime())
+    .filter((measurement) => Number.isFinite(measurement.numericValue))
+    .sort((first, second) => new Date(first.measuredAt).getTime() - new Date(second.measuredAt).getTime())
     .slice(-24);
 
-  const values = sortedMeasurements.map((measurement) => measurement.value);
+  const values = sortedMeasurements.map((measurement) => measurement.numericValue ?? 0);
   const min = values.length > 0 ? Math.min(...values) : 0;
   const max = values.length > 0 ? Math.max(...values) : 0;
   const range = max - min || 1;
   const points = sortedMeasurements.map((measurement, index) => {
     const x = sortedMeasurements.length === 1 ? 50 : (index / (sortedMeasurements.length - 1)) * 100;
-    const y = 100 - ((measurement.value - min) / range) * 86 - 7;
+    const y = 100 - (((measurement.numericValue ?? 0) - min) / range) * 86 - 7;
     return `${x},${y}`;
   });
 

@@ -14,7 +14,9 @@ export function useMeasurements(filters: MeasurementFilters = {}, enabled = true
 
     try {
       const data = await measurementService.findAll({
-        sensorId: filters.sensorId,
+        variableId: filters.variableId,
+        stationId: filters.stationId,
+        variableIds: filters.variableIds,
         start: filters.start,
         end: filters.end,
       });
@@ -24,7 +26,7 @@ export function useMeasurements(filters: MeasurementFilters = {}, enabled = true
     } finally {
       setIsLoading(false);
     }
-  }, [filters.sensorId, filters.start, filters.end]);
+  }, [filters.end, filters.start, filters.stationId, filters.variableId, filters.variableIds]);
 
   useEffect(() => {
     let ignore = false;
@@ -42,7 +44,9 @@ export function useMeasurements(filters: MeasurementFilters = {}, enabled = true
 
       try {
         const data = await measurementService.findAll({
-          sensorId: filters.sensorId,
+          variableId: filters.variableId,
+          stationId: filters.stationId,
+          variableIds: filters.variableIds,
           start: filters.start,
           end: filters.end,
         });
@@ -65,7 +69,7 @@ export function useMeasurements(filters: MeasurementFilters = {}, enabled = true
     return () => {
       ignore = true;
     };
-  }, [enabled, filters.sensorId, filters.start, filters.end]);
+  }, [enabled, filters.end, filters.start, filters.stationId, filters.variableId, filters.variableIds]);
 
   return { measurements, isLoading, error, loadMeasurements };
 }

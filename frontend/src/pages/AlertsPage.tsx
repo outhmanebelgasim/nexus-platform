@@ -9,31 +9,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useAlerts } from "@/hooks/useAlerts";
-import { useSensors } from "@/hooks/useSensors";
+import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import type { AlertSeverity, AlertStatus } from "@/types/alert";
 
 export function AlertsPage() {
-  const [selectedSensorId, setSelectedSensorId] = useState<number | undefined>();
+  const [selectedVariableId, setSelectedVariableId] = useState<number | undefined>();
   const [severity, setSeverity] = useState<AlertSeverity | "ALL">("ALL");
   const [status, setStatus] = useState<AlertStatus | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const { sensors, isLoading: sensorsLoading, error: sensorsError } = useSensors();
-  const { alerts, isLoading, error, loadAlerts } = useAlerts(selectedSensorId);
+  const { variables, isLoading: variablesLoading, error: variablesError } = useMeasurementVariables();
+  const { alerts, isLoading, error, loadAlerts } = useAlerts(selectedVariableId);
 
   const visibleAlerts = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     return alerts.filter((alert) => {
       const matchesSeverity = severity === "ALL" || alert.severity === severity;
       const matchesStatus = status === "ALL" || alert.status === status;
-      const sensor = sensors.find((item) => item.id === alert.sensorId);
+      const variable = variables.find((item) => item.id === (alert.variableId ?? alert.sensorId));
       const matchesQuery =
         !normalizedQuery ||
-        [alert.alertType, alert.message, sensor?.code]
+        [alert.alertType, alert.message, variable?.displayName, variable?.code]
           .filter(Boolean)
           .some((value) => value!.toLowerCase().includes(normalizedQuery));
       return matchesSeverity && matchesStatus && matchesQuery;
     });
-  }, [alerts, searchQuery, sensors, severity, status]);
+  }, [alerts, searchQuery, variables, severity, status]);
 
   return (
     <div className="space-y-6">
@@ -56,7 +56,7 @@ export function AlertsPage() {
         </div>
       </PageHeader>
 
-      {error || sensorsError ? <Alert>{error ?? sensorsError}</Alert> : null}
+      {error || variablesError ? <Alert>{error ?? variablesError}</Alert> : null}
 
       <Card className="shadow-sm">
         <CardHeader className="gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -82,21 +82,21 @@ export function AlertsPage() {
               <option value="IGNORED">Ignored</option>
             </Select>
             <Select
-              value={selectedSensorId ?? ""}
-              disabled={sensorsLoading}
-              onChange={(event) => setSelectedSensorId(event.target.value ? Number(event.target.value) : undefined)}
+              value={selectedVariableId ?? ""}
+              disabled={variablesLoading}
+              onChange={(event) => setSelectedVariableId(event.target.value ? Number(event.target.value) : undefined)}
             >
-              <option value="">All sensors</option>
-              {sensors.map((sensor) => (
-                <option key={sensor.id} value={sensor.id}>
-                  {sensor.code}
+              <option value="">All variables</option>
+              {variables.map((variable) => (
+                <option key={variable.id} value={variable.id}>
+                  {variable.displayName || variable.code}
                 </option>
               ))}
             </Select>
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading || sensorsLoading ? (
+          {isLoading || variablesLoading ? (
             <div className="grid gap-3">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div key={index} className="h-16 animate-pulse rounded-md bg-muted" />
@@ -108,7 +108,7 @@ export function AlertsPage() {
               <p className="mt-1 text-sm text-muted-foreground">The backend did not return alerts for the current filters.</p>
             </div>
           ) : (
-            <AlertTable alerts={visibleAlerts} sensors={sensors} />
+            <AlertTable alerts={visibleAlerts} variables={variables} />
           )}
         </CardContent>
       </Card>

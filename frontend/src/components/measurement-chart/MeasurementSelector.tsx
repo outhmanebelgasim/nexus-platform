@@ -23,7 +23,7 @@ export function MeasurementSelector({ measurementTypes, selectedTypes, onChange 
   if (measurementTypes.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-        No measurement types are available from the current sensor inventory.
+        No measurement types are available from the current variable inventory.
       </div>
     );
   }

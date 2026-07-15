@@ -7,14 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import type { Farm } from "@/types/farm";
 import type { ChartType, MeasurementAnalyticsFilters } from "@/types/measurement";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 import type { Station } from "@/types/station";
 
 interface ChartBuilderProps {
   filters: MeasurementAnalyticsFilters;
   farms: Farm[];
   stations: Station[];
-  sensors: Sensor[];
+  variables: MeasurementVariable[];
   measurementTypes: string[];
   isLoading: boolean;
   error?: string | null;
@@ -32,7 +32,7 @@ export function ChartBuilder({
   filters,
   farms,
   stations,
-  sensors,
+  variables,
   measurementTypes,
   isLoading,
   error,
@@ -42,12 +42,7 @@ export function ChartBuilder({
   const filteredStations = filters.farmId
     ? stations.filter((station) => station.farmId === filters.farmId)
     : stations;
-  const filteredSensors = sensors.filter((sensor) => {
-    const station = stations.find((item) => item.id === sensor.stationId);
-    const matchesFarm = !filters.farmId || station?.farmId === filters.farmId;
-    const matchesStation = !filters.stationId || sensor.stationId === filters.stationId;
-    return matchesFarm && matchesStation;
-  });
+  const filteredVariables = variables.filter((variable) => variable.stationId === filters.stationId && variable.active);
 
   return (
     <Card className="shadow-sm">
@@ -83,7 +78,7 @@ export function ChartBuilder({
                 onChange({
                   farmId: event.target.value ? Number(event.target.value) : undefined,
                   stationId: undefined,
-                  sensorIds: [],
+                  variableIds: [],
                 })
               }
             >
@@ -104,11 +99,11 @@ export function ChartBuilder({
               onChange={(event) =>
                 onChange({
                   stationId: event.target.value ? Number(event.target.value) : undefined,
-                  sensorIds: [],
+                  variableIds: [],
                 })
               }
             >
-              <option value="">All stations</option>
+              <option value="">Select station</option>
               {filteredStations.map((station) => (
                 <option key={station.id} value={station.id}>
                   {station.name} ({station.code})
@@ -118,39 +113,40 @@ export function ChartBuilder({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sensorIds">Sensors</Label>
+            <Label htmlFor="variableIds">Variables</Label>
             <Select
-              id="sensorIds"
+              id="variableIds"
               value=""
+              disabled={!filters.stationId}
               onChange={(event) => {
-                const sensorId = Number(event.target.value);
-                if (!sensorId || filters.sensorIds.includes(sensorId)) {
+                const variableId = Number(event.target.value);
+                if (!variableId || filters.variableIds.includes(variableId)) {
                   return;
                 }
-                onChange({ sensorIds: [...filters.sensorIds, sensorId] });
+                onChange({ variableIds: [...filters.variableIds, variableId] });
               }}
             >
-              <option value="">Add sensor to query</option>
-              {filteredSensors.map((sensor) => (
-                <option key={sensor.id} value={sensor.id}>
-                  {sensor.code} - {sensor.sensorType}
+              <option value="">{filters.stationId ? "Add variable to query" : "Select a station first"}</option>
+              {filteredVariables.map((variable) => (
+                <option key={variable.id} value={variable.id}>
+                  {variable.displayName || variable.code}
                 </option>
               ))}
             </Select>
             <div className="flex flex-wrap gap-2">
-              {filters.sensorIds.length === 0 ? (
-                <span className="text-xs text-muted-foreground">All matching sensors will be queried.</span>
+              {filters.variableIds.length === 0 ? (
+                <span className="text-xs text-muted-foreground">All active variables for the selected station will be queried.</span>
               ) : (
-                filters.sensorIds.map((sensorId) => {
-                  const sensor = sensors.find((item) => item.id === sensorId);
+                filters.variableIds.map((variableId) => {
+                  const variable = variables.find((item) => item.id === variableId);
                   return (
                     <button
-                      key={sensorId}
+                      key={variableId}
                       type="button"
                       className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground hover:border-destructive hover:text-destructive"
-                      onClick={() => onChange({ sensorIds: filters.sensorIds.filter((item) => item !== sensorId) })}
+                      onClick={() => onChange({ variableIds: filters.variableIds.filter((item) => item !== variableId) })}
                     >
-                      {sensor?.code ?? `Sensor #${sensorId}`} x
+                      {variable?.displayName || variable?.code || `Variable #${variableId}`} x
                     </button>
                   );
                 })

@@ -10,7 +10,6 @@ import {
   RadioTower,
   Sprout,
   Sun,
-  Thermometer,
   UserCircle,
   Users,
 } from "lucide-react";
@@ -48,7 +47,7 @@ const navigationSections: NavigationSection[] = [
     items: [
       { name: "Farms", href: "/farms", icon: Sprout, roles: navigationAccess.farms },
       { name: "Stations", href: "/stations", icon: RadioTower, roles: navigationAccess.stations },
-      { name: "Sensors", href: "/sensors", icon: Thermometer, roles: navigationAccess.sensors },
+      { name: "Variables", href: "/variables", icon: Database, roles: navigationAccess.variables },
     ],
   },
   {
@@ -132,7 +131,7 @@ export function DashboardLayout() {
           <div className="border-b p-5">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Field Intelligence</p>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Monitor farms, weather stations, synchronized sensors and agricultural telemetry.
+              Monitor farms, weather stations, measurement variables and agricultural telemetry.
             </p>
           </div>
           <nav className="flex-1 space-y-6 overflow-y-auto p-3">

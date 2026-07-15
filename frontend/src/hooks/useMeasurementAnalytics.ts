@@ -9,14 +9,15 @@ export function useMeasurementAnalytics() {
   const [error, setError] = useState<string | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  const generateChart = async (filters: MeasurementAnalyticsFilters, sensorIds: number[]) => {
+  const generateChart = async (filters: MeasurementAnalyticsFilters, variableIds: number[]) => {
     setIsLoading(true);
     setError(null);
     setHasGenerated(true);
 
     try {
       const data = await measurementService.findAnalytics({
-        sensorIds,
+        stationId: filters.stationId,
+        variableIds,
         start: filters.start,
         end: filters.end,
         measurementTypes: filters.measurementTypes,

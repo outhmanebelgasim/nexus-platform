@@ -1,26 +1,29 @@
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getVariableLabel } from "@/components/measurement-chart/chartUtils";
 import type { Measurement } from "@/types/measurement";
-import type { Sensor } from "@/types/sensor";
+import type { MeasurementVariable } from "@/types/measurementVariable";
 import { formatDateTime } from "@/utils/format";
 
 interface MeasurementTableProps {
   measurements: Measurement[];
-  sensors: Sensor[];
+  variables: MeasurementVariable[];
 }
 
-function getSensorLabel(sensors: Sensor[], sensorId: number) {
-  const sensor = sensors.find((item) => item.id === sensorId);
-  return sensor ? `${sensor.code} - ${sensor.sensorType}` : `Sensor #${sensorId}`;
+function getMeasurementValue(measurement: Measurement) {
+  if (measurement.numericValue !== null) {
+    return measurement.numericValue.toLocaleString();
+  }
+  return measurement.textValue || "Not available";
 }
 
-export function MeasurementTable({ measurements, sensors }: MeasurementTableProps) {
+export function MeasurementTable({ measurements, variables }: MeasurementTableProps) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Measurement time</TableHead>
-          <TableHead>Sensor</TableHead>
+          <TableHead>Variable</TableHead>
           <TableHead>Value</TableHead>
           <TableHead>Quality</TableHead>
           <TableHead>Import batch</TableHead>
@@ -29,10 +32,10 @@ export function MeasurementTable({ measurements, sensors }: MeasurementTableProp
       </TableHeader>
       <TableBody>
         {measurements.map((measurement) => (
-          <TableRow key={`${measurement.sensorId}-${measurement.time}`} className="hover:bg-accent/30">
-            <TableCell className="font-medium">{formatDateTime(measurement.time)}</TableCell>
-            <TableCell>{getSensorLabel(sensors, measurement.sensorId)}</TableCell>
-            <TableCell>{measurement.value.toLocaleString()}</TableCell>
+          <TableRow key={`${measurement.variableId}-${measurement.measuredAt}`} className="hover:bg-accent/30">
+            <TableCell className="font-medium">{formatDateTime(measurement.measuredAt)}</TableCell>
+            <TableCell>{variables.find((item) => item.id === measurement.variableId) ? getVariableLabel(variables.find((item) => item.id === measurement.variableId)!) : `Variable #${measurement.variableId}`}</TableCell>
+            <TableCell>{getMeasurementValue(measurement)}</TableCell>
             <TableCell>
               <OperationalBadge value={measurement.quality} />
             </TableCell>
