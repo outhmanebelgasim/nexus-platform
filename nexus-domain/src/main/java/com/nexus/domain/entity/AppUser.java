@@ -68,6 +68,15 @@ public class AppUser {
     private Set<Station> stations = new HashSet<>();
 
     @Builder.Default
+    @ManyToMany
+    @JoinTable(
+            name = "user_measurement_variable_access",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "variable_id")
+    )
+    private Set<MeasurementVariable> measurementVariables = new HashSet<>();
+
+    @Builder.Default
     @ElementCollection(targetClass = MeasurementType.class)
     @CollectionTable(name = "user_measurement_type_access", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)
