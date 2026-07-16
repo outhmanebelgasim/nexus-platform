@@ -9,6 +9,7 @@ public record UserPermissionsResponse(
         Role role,
         Set<Long> farmIds,
         Set<Long> stationIds,
+        Set<Long> variableIds,
         Set<MeasurementType> allowedMeasurementTypes
 ) {
 }

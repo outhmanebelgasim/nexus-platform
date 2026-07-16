@@ -60,6 +60,7 @@ class AuthPersistenceLoginIntegrationTest {
                 UserStatus.ACTIVE,
                 Set.of(),
                 Set.of(),
+                Set.of(),
                 Set.of()
         ));
 
@@ -90,6 +91,7 @@ class AuthPersistenceLoginIntegrationTest {
                 UserStatus.ACTIVE,
                 Set.of(),
                 Set.of(),
+                Set.of(),
                 Set.of()
         );
 
@@ -101,6 +103,7 @@ class AuthPersistenceLoginIntegrationTest {
                 rawPassword,
                 Role.VIEWER,
                 UserStatus.ACTIVE,
+                Set.of(),
                 Set.of(),
                 Set.of(),
                 Set.of()

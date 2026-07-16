@@ -18,6 +18,7 @@ public record UserResponse(
         Instant updatedAt,
         Set<Long> farmIds,
         Set<Long> stationIds,
+        Set<Long> variableIds,
         Set<MeasurementType> allowedMeasurementTypes
 ) {
 }

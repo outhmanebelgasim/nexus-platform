@@ -7,6 +7,7 @@ import com.nexus.domain.enums.MeasurementType;
 import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.UserStatus;
 import com.nexus.platform.repository.FarmRepository;
+import com.nexus.platform.repository.MeasurementVariableRepository;
 import com.nexus.platform.repository.StationRepository;
 import com.nexus.platform.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,8 @@ class AccessControlServiceTest {
         accessControlService = new AccessControlService(
                 mock(UserRepository.class),
                 mock(FarmRepository.class),
-                mock(StationRepository.class)
+                mock(StationRepository.class),
+                mock(MeasurementVariableRepository.class)
         );
     }
 
@@ -70,6 +72,17 @@ class AccessControlServiceTest {
         assertThat(accessControlService.canAccessMeasurementVariable(viewer, variable)).isFalse();
         assertThatThrownBy(() -> accessControlService.ensureMeasurementVariableAccess(viewer, variable))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void directVariablePermissionAllowsImportedVariableWithoutMeasurementType() {
+        Station station = station(10L);
+        AppUser viewer = user(Role.VIEWER);
+        viewer.getStations().add(station);
+        MeasurementVariable variable = variable(100L, station, "NEW_IMPORTED_COLUMN", null);
+        viewer.getMeasurementVariables().add(variable);
+
+        assertThat(accessControlService.canAccessMeasurementVariable(viewer, variable)).isTrue();
     }
 
     @Test

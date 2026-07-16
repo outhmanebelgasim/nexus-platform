@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,6 +80,22 @@ class MeasurementVariableServiceImplTest {
 
         assertThatThrownBy(() -> service.update(variable.getId(), request, admin.getEmail()))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void blankSearchUsesNoTextQueryForStationScopedVariables() {
+        AppUser superAdmin = user(Role.SUPER_ADMIN);
+        MeasurementVariable variable = variable(100L, station(10L), null);
+
+        when(accessControlService.findUserByEmail(superAdmin.getEmail())).thenReturn(superAdmin);
+        when(accessControlService.hasUnrestrictedAccess(superAdmin)).thenReturn(true);
+        when(measurementVariableRepository.searchWithoutText(10L, true)).thenReturn(List.of(variable));
+
+        assertThat(service.search(10L, true, " ", superAdmin.getEmail()))
+                .extracting("id")
+                .containsExactly(100L);
+
+        verify(measurementVariableRepository).searchWithoutText(10L, true);
     }
 
     private static AppUser user(Role role) {

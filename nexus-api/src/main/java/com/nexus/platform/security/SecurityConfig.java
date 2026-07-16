@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/farms/**", "/api/stations/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/measurement-variables/**", "/api/sensors/**", "/api/measurements/**", "/api/alerts/**", "/api/import-logs/**")
                         .hasAnyRole("SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER")
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/importer/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/measurement-variables/**", "/api/sensors/**", "/api/measurements/**", "/api/alerts/**", "/api/import-logs/**")
                         .hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .anyRequest().authenticated()

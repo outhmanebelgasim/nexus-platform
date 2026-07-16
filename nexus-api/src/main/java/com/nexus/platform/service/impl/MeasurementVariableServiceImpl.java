@@ -48,16 +48,17 @@ public class MeasurementVariableServiceImpl implements MeasurementVariableServic
     @Override
     public List<MeasurementVariableResponse> search(Long stationId, Boolean active, String search, String currentUserEmail) {
         AppUser user = accessControlService.findUserByEmail(currentUserEmail);
+        String normalizedSearch = normalizeSearch(search);
         if (accessControlService.hasUnrestrictedAccess(user)) {
             return MeasurementVariableMapper.toResponseList(
-                    measurementVariableRepository.search(stationId, active, normalizeSearch(search))
+                    searchVariables(stationId, active, normalizedSearch)
             );
         }
 
         if (stationId != null) {
             accessControlService.ensureStationAccess(user, stationId);
             return MeasurementVariableMapper.toResponseList(
-                    measurementVariableRepository.search(stationId, active, normalizeSearch(search))
+                    searchVariables(stationId, active, normalizedSearch)
                             .stream()
                             .filter(variable -> accessControlService.canAccessMeasurementVariable(user, variable))
                             .toList()
@@ -70,7 +71,7 @@ public class MeasurementVariableServiceImpl implements MeasurementVariableServic
         }
 
         return MeasurementVariableMapper.toResponseList(
-                measurementVariableRepository.searchByStationIds(stationIds, active, normalizeSearch(search))
+                searchVariablesByStationIds(stationIds, active, normalizedSearch)
                         .stream()
                         .filter(variable -> accessControlService.canAccessMeasurementVariable(user, variable))
                         .toList()
@@ -153,5 +154,19 @@ public class MeasurementVariableServiceImpl implements MeasurementVariableServic
             return null;
         }
         return search.trim();
+    }
+
+    private List<MeasurementVariable> searchVariables(Long stationId, Boolean active, String search) {
+        if (search == null) {
+            return measurementVariableRepository.searchWithoutText(stationId, active);
+        }
+        return measurementVariableRepository.search(stationId, active, search);
+    }
+
+    private List<MeasurementVariable> searchVariablesByStationIds(List<Long> stationIds, Boolean active, String search) {
+        if (search == null) {
+            return measurementVariableRepository.searchByStationIdsWithoutText(stationIds, active);
+        }
+        return measurementVariableRepository.searchByStationIds(stationIds, active, search);
     }
 }

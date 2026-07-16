@@ -139,7 +139,7 @@ public class UserServiceImpl implements UserService {
             user.setCreatedById(currentUser.getId());
         }
         user.setCreatedAt(Instant.now());
-        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.allowedMeasurementTypes());
+        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.variableIds(), request.allowedMeasurementTypes());
         return UserMapper.toResponse(userRepository.save(user));
     }
 
@@ -165,7 +165,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(normalizedEmail);
         user.setRole(updatedUser.getRole());
         user.setStatus(updatedUser.getStatus());
-        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.allowedMeasurementTypes());
+        accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.variableIds(), request.allowedMeasurementTypes());
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
         }

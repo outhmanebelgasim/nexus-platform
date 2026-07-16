@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 @SpringBootApplication(scanBasePackages = "com.nexus")
-@EntityScan(basePackages = "com.nexus.domain.entity")
+@EntityScan(basePackages = {"com.nexus.domain.entity", "com.nexus.platform.model"})
 public class NexusPlatformApplication {
 
 	public static void main(String[] args) {

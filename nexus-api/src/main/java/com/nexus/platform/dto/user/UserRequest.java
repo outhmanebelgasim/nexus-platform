@@ -33,6 +33,8 @@ public record UserRequest(
 
         Set<Long> stationIds,
 
+        Set<Long> variableIds,
+
         Set<MeasurementType> allowedMeasurementTypes
 ) {
 }

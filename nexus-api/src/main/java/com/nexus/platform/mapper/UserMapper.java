@@ -2,6 +2,7 @@ package com.nexus.platform.mapper;
 
 import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.Farm;
+import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.domain.entity.Station;
 import com.nexus.platform.dto.user.UserRequest;
 import com.nexus.platform.dto.user.UserResponse;
@@ -44,6 +45,7 @@ public final class UserMapper {
                 user.getUpdatedAt(),
                 ids(user.getFarms()),
                 ids(user.getStations()),
+                ids(user.getMeasurementVariables()),
                 user.getAllowedMeasurementTypes() == null ? Set.of() : Set.copyOf(user.getAllowedMeasurementTypes())
         );
     }
@@ -70,6 +72,9 @@ public final class UserMapper {
                     }
                     if (resource instanceof Station station) {
                         return station.getId();
+                    }
+                    if (resource instanceof MeasurementVariable variable) {
+                        return variable.getId();
                     }
                     throw new IllegalArgumentException("Unsupported access resource type");
                 })

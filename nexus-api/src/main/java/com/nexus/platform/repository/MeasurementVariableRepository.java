@@ -22,6 +22,18 @@ public interface MeasurementVariableRepository extends JpaRepository<Measurement
             from MeasurementVariable variable
             where (:stationId is null or variable.station.id = :stationId)
               and (:active is null or variable.active = :active)
+            order by variable.station.id asc, variable.code asc
+            """)
+    List<MeasurementVariable> searchWithoutText(
+            @Param("stationId") Long stationId,
+            @Param("active") Boolean active
+    );
+
+    @Query("""
+            select variable
+            from MeasurementVariable variable
+            where (:stationId is null or variable.station.id = :stationId)
+              and (:active is null or variable.active = :active)
               and (:search is null
                    or lower(variable.code) like lower(concat('%', :search, '%'))
                    or lower(coalesce(variable.displayName, '')) like lower(concat('%', :search, '%'))
@@ -32,6 +44,18 @@ public interface MeasurementVariableRepository extends JpaRepository<Measurement
             @Param("stationId") Long stationId,
             @Param("active") Boolean active,
             @Param("search") String search
+    );
+
+    @Query("""
+            select variable
+            from MeasurementVariable variable
+            where variable.station.id in :stationIds
+              and (:active is null or variable.active = :active)
+            order by variable.station.id asc, variable.code asc
+            """)
+    List<MeasurementVariable> searchByStationIdsWithoutText(
+            @Param("stationIds") Collection<Long> stationIds,
+            @Param("active") Boolean active
     );
 
     @Query("""

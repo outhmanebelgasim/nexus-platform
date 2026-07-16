@@ -9,6 +9,7 @@ import com.nexus.domain.enums.Role;
 import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.repository.FarmRepository;
+import com.nexus.platform.repository.MeasurementVariableRepository;
 import com.nexus.platform.repository.StationRepository;
 import com.nexus.platform.repository.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,15 +29,18 @@ public class AccessControlService {
     private final UserRepository userRepository;
     private final FarmRepository farmRepository;
     private final StationRepository stationRepository;
+    private final MeasurementVariableRepository measurementVariableRepository;
 
     public AccessControlService(
             UserRepository userRepository,
             FarmRepository farmRepository,
-            StationRepository stationRepository
+            StationRepository stationRepository,
+            MeasurementVariableRepository measurementVariableRepository
     ) {
         this.userRepository = userRepository;
         this.farmRepository = farmRepository;
         this.stationRepository = stationRepository;
+        this.measurementVariableRepository = measurementVariableRepository;
     }
 
     public AppUser findUserByEmail(String email) {
@@ -50,6 +54,7 @@ public class AccessControlService {
                 user.getRole(),
                 accessibleFarmIds(user),
                 accessibleStationIds(user),
+                accessibleMeasurementVariableIds(user),
                 accessibleMeasurementTypes(user)
         );
     }
@@ -93,21 +98,40 @@ public class AccessControlService {
     }
 
     @Transactional
-    public void assignAccess(AppUser actor, AppUser target, Set<Long> farmIds, Set<Long> stationIds, Set<MeasurementType> measurementTypes) {
+    public Set<Long> accessibleMeasurementVariableIds(AppUser user) {
+        if (hasUnrestrictedAccess(user)) {
+            return measurementVariableRepository.findAll().stream()
+                    .map(MeasurementVariable::getId)
+                    .collect(Collectors.toUnmodifiableSet());
+        }
+
+        return user.getMeasurementVariables().stream()
+                .map(MeasurementVariable::getId)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    @Transactional
+    public void assignAccess(AppUser actor, AppUser target, Set<Long> farmIds, Set<Long> stationIds, Set<Long> variableIds, Set<MeasurementType> measurementTypes) {
         Set<Long> requestedFarmIds = farmIds == null ? Set.of() : Set.copyOf(farmIds);
         Set<Long> requestedStationIds = stationIds == null ? Set.of() : Set.copyOf(stationIds);
+        Set<Long> requestedVariableIds = variableIds == null ? Set.of() : Set.copyOf(variableIds);
         Set<MeasurementType> requestedTypes = measurementTypes == null ? Set.of() : Set.copyOf(measurementTypes);
 
         List<Farm> farms = farmRepository.findAllById(requestedFarmIds);
         List<Station> stations = stationRepository.findAllById(requestedStationIds);
+        List<MeasurementVariable> variables = measurementVariableRepository.findByIdIn(requestedVariableIds);
         ensureAllIdsExist("Farm", requestedFarmIds, farms.stream().map(Farm::getId).collect(Collectors.toSet()));
         ensureAllIdsExist("Station", requestedStationIds, stations.stream().map(Station::getId).collect(Collectors.toSet()));
-        ensureActorCanAssign(actor, requestedFarmIds, requestedStationIds, requestedTypes);
+        ensureAllIdsExist("Measurement variable", requestedVariableIds, variables.stream().map(MeasurementVariable::getId).collect(Collectors.toSet()));
+        ensureVariablesBelongToRequestedScope(requestedFarmIds, requestedStationIds, variables);
+        ensureActorCanAssign(actor, requestedFarmIds, requestedStationIds, variables, requestedTypes);
 
         target.getFarms().clear();
         target.getFarms().addAll(farms);
         target.getStations().clear();
         target.getStations().addAll(stations);
+        target.getMeasurementVariables().clear();
+        target.getMeasurementVariables().addAll(variables);
         target.getAllowedMeasurementTypes().clear();
         target.getAllowedMeasurementTypes().addAll(requestedTypes);
     }
@@ -147,6 +171,10 @@ public class AccessControlService {
             return false;
         }
 
+        if (user.getMeasurementVariables().stream().anyMatch(allowedVariable -> allowedVariable.getId().equals(variable.getId()))) {
+            return true;
+        }
+
         if (user.getRole() == Role.ADMIN) {
             return true;
         }
@@ -165,6 +193,7 @@ public class AccessControlService {
             AppUser actor,
             Set<Long> requestedFarmIds,
             Set<Long> requestedStationIds,
+            List<MeasurementVariable> requestedVariables,
             Set<MeasurementType> requestedTypes
     ) {
         if (actor == null || hasUnrestrictedAccess(actor)) {
@@ -177,8 +206,26 @@ public class AccessControlService {
 
         if (!accessibleFarmIds(actor).containsAll(requestedFarmIds)
                 || !accessibleStationIds(actor).containsAll(requestedStationIds)
+                || requestedVariables.stream().anyMatch(variable -> !canAccessMeasurementVariable(actor, variable))
                 || !accessibleMeasurementTypes(actor).containsAll(requestedTypes)) {
             throw new AccessDeniedException("You cannot assign access outside your own scope");
+        }
+    }
+
+    private void ensureVariablesBelongToRequestedScope(
+            Set<Long> requestedFarmIds,
+            Set<Long> requestedStationIds,
+            List<MeasurementVariable> variables
+    ) {
+        Set<Long> scopedStationIds = requestedStationIds.stream().collect(Collectors.toSet());
+        requestedFarmIds.forEach(farmId -> stationRepository.findByFarmId(farmId).stream()
+                .map(Station::getId)
+                .forEach(scopedStationIds::add));
+
+        boolean outsideScope = variables.stream()
+                .anyMatch(variable -> variable.getStation() == null || !scopedStationIds.contains(variable.getStation().getId()));
+        if (outsideScope) {
+            throw new AccessDeniedException("Measurement variable access must belong to the selected station or farm scope");
         }
     }
 
