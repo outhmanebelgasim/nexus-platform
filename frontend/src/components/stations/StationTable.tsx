@@ -1,5 +1,5 @@
-import { Edit, MapPin, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { MapPin } from "lucide-react";
+import { ActionIconButton } from "@/components/shared/ActionIconButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { Farm } from "@/types/farm";
@@ -52,14 +52,8 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                 </p>
               </div>
               {onEdit && onDelete ? <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => onEdit(station)} disabled={isSaving}>
-                  <Edit className="h-4 w-4" aria-hidden="true" />
-                  Edit
-                </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={() => onDelete(station)} disabled={isSaving}>
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Delete
-                </Button>
+                <ActionIconButton action="edit" label="Edit station" showLabel onClick={() => onEdit(station)} disabled={isSaving} />
+                <ActionIconButton action="delete" label="Delete station" showLabel onClick={() => onDelete(station)} disabled={isSaving} />
               </div> : null}
             </div>
           </article>
@@ -93,20 +87,8 @@ export function StationTable({ stations, farms, isSaving, onEdit, onDelete }: St
                 <TableCell>{formatDateTime(station.createdAt)}</TableCell>
                 {onEdit && onDelete ? <TableCell>
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => onEdit(station)} disabled={isSaving}>
-                      <Edit className="h-4 w-4" aria-hidden="true" />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => onDelete(station)}
-                      disabled={isSaving}
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      Delete
-                    </Button>
+                    <ActionIconButton action="edit" label="Edit station" onClick={() => onEdit(station)} disabled={isSaving} />
+                    <ActionIconButton action="delete" label="Delete station" onClick={() => onDelete(station)} disabled={isSaving} />
                   </div>
                 </TableCell> : null}
               </TableRow>

@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -13,11 +14,32 @@ interface DialogProps {
 }
 
 export function Dialog({ open, title, description, children, className, onOpenChange }: DialogProps) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOpenChange(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onOpenChange, open]);
+
   if (!open) {
     return null;
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <button
         type="button"
@@ -30,11 +52,12 @@ export function Dialog({ open, title, description, children, className, onOpenCh
         aria-modal="true"
         aria-labelledby="dialog-title"
         className={cn(
-          "relative max-h-[92vh] w-full overflow-y-auto rounded-t-lg border bg-card p-5 text-card-foreground shadow-xl sm:max-w-2xl sm:rounded-lg",
+          "relative z-10 flex max-h-[92vh] w-full flex-col rounded-t-lg border bg-card text-card-foreground shadow-xl sm:max-w-2xl sm:rounded-lg",
           className,
         )}
       >
-        <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="shrink-0 border-b p-5">
+          <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 id="dialog-title" className="text-lg font-semibold tracking-tight">
               {title}
@@ -44,10 +67,12 @@ export function Dialog({ open, title, description, children, className, onOpenCh
           <Button type="button" variant="ghost" size="icon" aria-label="Close dialog" onClick={() => onOpenChange(false)}>
             <X className="h-5 w-5" aria-hidden="true" />
           </Button>
+          </div>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto p-5">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

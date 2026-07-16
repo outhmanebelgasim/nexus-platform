@@ -1,7 +1,9 @@
-import { MapPinned, Plus, RadioTower, RefreshCcw, Sprout } from "lucide-react";
+import { MapPinned, RadioTower, RefreshCcw, Sprout } from "lucide-react";
 import { useMemo, useState } from "react";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { PaginationControls } from "@/components/shared/PaginationControls";
 import { StationForm } from "@/components/stations/StationForm";
 import { StationTable } from "@/components/stations/StationTable";
 import { Alert } from "@/components/ui/alert";
@@ -9,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useFarms } from "@/hooks/useFarms";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
@@ -16,13 +19,13 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Station, StationPayload } from "@/types/station";
 import { formatDateTime } from "@/utils/format";
 
-type FormMode = "closed" | "create" | "edit";
+type FormMode = "closed" | "edit";
 
 export function StationsPage() {
   const [selectedFarmId, setSelectedFarmId] = useState<number | undefined>();
   const { hasRole } = useAuth();
   const { farms, isLoading: farmsLoading, error: farmsError } = useFarms();
-  const { stations, isLoading, isSaving, error, loadStations, createStation, updateStation, deleteStation } =
+  const { stations, isLoading, isSaving, error, loadStations, updateStation, deleteStation } =
     useStations(selectedFarmId);
   const [formMode, setFormMode] = useState<FormMode>("closed");
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
@@ -30,6 +33,7 @@ export function StationsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const { showToast } = useToast();
   const canManageStations = hasRole("SUPER_ADMIN", "ADMIN");
+  const stationsPagination = useClientPagination(stations, 10);
 
   const activeStations = stations.filter((station) => station.status === "ACTIVE").length;
   const latestUpdate = useMemo(() => {
@@ -50,12 +54,6 @@ export function StationsPage() {
     setFormError(null);
   };
 
-  const openCreateForm = () => {
-    setSelectedStation(null);
-    setFormError(null);
-    setFormMode("create");
-  };
-
   const openEditForm = (station: Station) => {
     setSelectedStation(station);
     setFormError(null);
@@ -74,9 +72,7 @@ export function StationsPage() {
         return;
       }
 
-      await createStation(payload);
-      closeForm();
-      showToast({ title: "Station created", description: `${payload.name} was added to the registry.` });
+      throw new Error("Stations are created automatically by the importer.");
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Unable to save station.";
       setFormError(message);
@@ -112,10 +108,6 @@ export function StationsPage() {
               <RefreshCcw className="h-4 w-4" aria-hidden="true" />
               Refresh
             </Button>
-            {canManageStations ? <Button type="button" onClick={openCreateForm} disabled={isSaving || farms.length === 0}>
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New station
-            </Button> : null}
           </>
         }
       >
@@ -142,6 +134,7 @@ export function StationsPage() {
               onChange={(event) => {
                 const value = event.target.value;
                 setSelectedFarmId(value ? Number(value) : undefined);
+                stationsPagination.resetPage();
               }}
             >
               <option value="">All farms</option>
@@ -161,30 +154,36 @@ export function StationsPage() {
               ))}
             </div>
           ) : stations.length === 0 ? (
-            <div className="rounded-md border border-dashed p-8 text-center">
-              <p className="font-medium">No stations found</p>
-              <p className="mt-1 text-sm text-muted-foreground">{canManageStations ? "Create a station after registering at least one farm." : "No station records are available for your account."}</p>
-              {canManageStations ? <Button className="mt-4" type="button" onClick={openCreateForm} disabled={farms.length === 0}>
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Create station
-              </Button> : null}
-            </div>
+            <EmptyState title="No stations found" description="Stations appear automatically after synchronized DAT files are discovered and imported." />
           ) : (
             <StationTable
-              stations={stations}
+              stations={stationsPagination.paginatedItems}
               farms={farms}
               isSaving={isSaving}
               onEdit={canManageStations ? openEditForm : undefined}
               onDelete={canManageStations ? setStationToDelete : undefined}
             />
           )}
+          {stations.length > 0 ? (
+            <div className="mt-4">
+              <PaginationControls
+                page={stationsPagination.page}
+                totalPages={stationsPagination.totalPages}
+                totalItems={stationsPagination.totalItems}
+                pageSize={stationsPagination.pageSize}
+                label="stations"
+                onPageChange={stationsPagination.setPage}
+                onPageSizeChange={stationsPagination.setPageSize}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
       <Dialog
         open={canManageStations && formMode !== "closed"}
-        title={formMode === "edit" ? "Edit station" : "Create station"}
-        description="Station records are linked to an existing farm."
+        title="Edit station"
+        description="Configure imported station metadata and farm assignment."
         onOpenChange={(open) => {
           if (!open && !isSaving) {
             closeForm();

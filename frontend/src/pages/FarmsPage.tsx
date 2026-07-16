@@ -1,16 +1,18 @@
-import { CalendarClock, Cpu, Plus, RadioTower, RefreshCcw, Search, Sprout } from "lucide-react";
+import { CalendarClock, Cpu, Plus, RadioTower, RefreshCcw, Sprout } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FarmForm } from "@/components/farms/FarmForm";
 import { FarmTable } from "@/components/farms/FarmTable";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PaginationControls } from "@/components/shared/PaginationControls";
+import { SearchInput } from "@/components/shared/SearchInput";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useFarms } from "@/hooks/useFarms";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
@@ -74,6 +76,7 @@ export function FarmsPage() {
       return sortOrder === "newest" ? secondTime - firstTime : firstTime - secondTime;
     });
   }, [farms, searchQuery, sortOrder]);
+  const farmsPagination = useClientPagination(visibleFarms, 10);
 
   const openCreateForm = () => {
     setSelectedFarm(null);
@@ -206,16 +209,8 @@ export function FarmsPage() {
             <CardDescription>{visibleFarms.length} farms shown</CardDescription>
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_180px] lg:w-[520px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <Input
-                className="pl-9"
-                placeholder="Search farms..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-              />
-            </div>
-            <Select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as FarmSort)}>
+            <SearchInput placeholder="Search farms..." value={searchQuery} onChange={(value) => { setSearchQuery(value); farmsPagination.resetPage(); }} />
+            <Select value={sortOrder} onChange={(event) => { setSortOrder(event.target.value as FarmSort); farmsPagination.resetPage(); }}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="name-asc">Name A-Z</option>
@@ -246,12 +241,25 @@ export function FarmsPage() {
             </div>
           ) : (
             <FarmTable
-              farms={visibleFarms}
+              farms={farmsPagination.paginatedItems}
               isSaving={isSaving}
               onEdit={canManageFarms ? openEditForm : undefined}
               onDelete={canManageFarms ? handleDelete : undefined}
             />
           )}
+          {visibleFarms.length > 0 ? (
+            <div className="mt-4">
+              <PaginationControls
+                page={farmsPagination.page}
+                totalPages={farmsPagination.totalPages}
+                totalItems={farmsPagination.totalItems}
+                pageSize={farmsPagination.pageSize}
+                label="farms"
+                onPageChange={farmsPagination.setPage}
+                onPageSizeChange={farmsPagination.setPageSize}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

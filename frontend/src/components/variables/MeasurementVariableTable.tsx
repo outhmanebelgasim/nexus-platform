@@ -1,6 +1,5 @@
-import { Edit3 } from "lucide-react";
+import { ActionIconButton } from "@/components/shared/ActionIconButton";
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { MeasurementVariable } from "@/types/measurementVariable";
 import type { Station } from "@/types/station";
@@ -12,6 +11,7 @@ interface MeasurementVariableTableProps {
   stations: Station[];
   canEdit: (variable: MeasurementVariable) => boolean;
   onEdit: (variable: MeasurementVariable) => void;
+  onDelete: (variable: MeasurementVariable) => void;
 }
 
 function metadata(value: string | null) {
@@ -22,7 +22,7 @@ function variableLabel(variable: MeasurementVariable) {
   return variable.displayName?.trim() || variable.code;
 }
 
-export function MeasurementVariableTable({ variables, stations, canEdit, onEdit }: MeasurementVariableTableProps) {
+export function MeasurementVariableTable({ variables, stations, canEdit, onEdit, onDelete }: MeasurementVariableTableProps) {
   return (
     <>
       <div className="grid gap-3 xl:hidden">
@@ -62,10 +62,10 @@ export function MeasurementVariableTable({ variables, stations, canEdit, onEdit 
               </p>
             </div>
             {canEdit(variable) ? (
-              <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => onEdit(variable)}>
-                <Edit3 className="h-4 w-4" aria-hidden="true" />
-                Edit metadata
-              </Button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <ActionIconButton action="edit" label="Edit variable metadata" showLabel onClick={() => onEdit(variable)} />
+                <ActionIconButton action="delete" label="Delete variable" showLabel onClick={() => onDelete(variable)} />
+              </div>
             ) : null}
           </article>
         ))}
@@ -104,10 +104,10 @@ export function MeasurementVariableTable({ variables, stations, canEdit, onEdit 
                 <TableCell>{formatDateTime(variable.lastSeenAt)}</TableCell>
                 <TableCell className="text-right">
                   {canEdit(variable) ? (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => onEdit(variable)}>
-                      <Edit3 className="h-4 w-4" aria-hidden="true" />
-                      Edit
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <ActionIconButton action="edit" label="Edit variable" onClick={() => onEdit(variable)} />
+                      <ActionIconButton action="delete" label="Delete variable" onClick={() => onDelete(variable)} />
+                    </div>
                   ) : (
                     <span className="text-sm text-muted-foreground">Read-only</span>
                   )}

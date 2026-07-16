@@ -45,11 +45,6 @@ function themeColor(token: string) {
   return `hsl(var(${token}))`;
 }
 
-function resolvedThemeColor(token: string) {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-  return value ? `hsl(${value})` : themeColor(token);
-}
-
 export function MeasurementChart({ chartType, measurements, variables, series }: MeasurementChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
@@ -138,37 +133,6 @@ export function MeasurementChart({ chartType, measurements, variables, series }:
     downloadFile("measurements-analytics.csv", exportMeasurementsAsCsv(measurements, variables), "text/csv;charset=utf-8");
   };
 
-  const exportPng = async () => {
-    if (!svgRef.current) {
-      return;
-    }
-
-    const source = new XMLSerializer().serializeToString(svgRef.current);
-    const image = new Image();
-    const svgBlob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(svgBlob);
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        URL.revokeObjectURL(url);
-        return;
-      }
-      context.fillStyle = resolvedThemeColor("--card");
-      context.fillRect(0, 0, width, height);
-      context.drawImage(image, 0, 0);
-      URL.revokeObjectURL(url);
-      const pngUrl = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = pngUrl;
-      link.download = "measurements-analytics.png";
-      link.click();
-    };
-    image.src = url;
-  };
-
   return (
     <Card className={cn("shadow-sm", isFullscreen && "fixed inset-4 z-50 overflow-auto bg-background")}>
       <CardHeader className="gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -182,7 +146,6 @@ export function MeasurementChart({ chartType, measurements, variables, series }:
           canExport={measurements.length > 0}
           isFullscreen={isFullscreen}
           onExportCsv={exportCsv}
-          onExportPng={exportPng}
           onFullscreen={() => setIsFullscreen((current) => !current)}
           onResetZoom={() => setZoom(1)}
           onZoomIn={() => setZoom((current) => Math.min(current * 1.5, 12))}

@@ -8,9 +8,11 @@ import { buildSeries, getMeasurementTypeOptions, resolveTimeRange } from "@/comp
 import { MeasurementTable } from "@/components/measurements/MeasurementTable";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PaginationControls } from "@/components/shared/PaginationControls";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFarms } from "@/hooks/useFarms";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useMeasurementAnalytics } from "@/hooks/useMeasurementAnalytics";
 import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
@@ -22,6 +24,7 @@ import type { UserPermissions } from "@/types/user";
 const initialFilters: MeasurementAnalyticsFilters = {
   variableIds: [],
   measurementTypes: [],
+  includeInactiveVariables: false,
   timeRange: "24h",
   chartType: "line",
 };
@@ -42,7 +45,8 @@ function filterVariablesByScope(variables: MeasurementVariable[], stationById: M
     const matchesStation = !filters.stationId || variable.stationId === filters.stationId;
     const matchesExplicitVariable = filters.variableIds.length === 0 || filters.variableIds.includes(variable.id);
     const matchesType = filters.measurementTypes.length === 0 || Boolean(variable.measurementType && filters.measurementTypes.includes(variable.measurementType));
-    return matchesFarm && matchesStation && matchesExplicitVariable && matchesType && variable.active;
+    const matchesActive = filters.includeInactiveVariables || variable.active;
+    return matchesFarm && matchesStation && matchesExplicitVariable && matchesType && matchesActive;
   });
 }
 
@@ -53,7 +57,11 @@ export function MeasurementsPage() {
   const [permissionsError, setPermissionsError] = useState<string | null>(null);
   const { farms, error: farmsError } = useFarms();
   const { stations, error: stationsError } = useStations();
-  const { variables, error: variablesError } = useMeasurementVariables();
+  const { variables, isLoading: variablesLoading, error: variablesError } = useMeasurementVariables(
+    filters.stationId
+      ? { stationId: filters.stationId, active: filters.includeInactiveVariables ? undefined : true }
+      : { active: filters.includeInactiveVariables ? undefined : true },
+  );
   const { measurements, isLoading, error, hasGenerated, generateChart } = useMeasurementAnalytics();
 
   useEffect(() => {
@@ -91,10 +99,15 @@ export function MeasurementsPage() {
     () => (!permissions || permissions.role === "SUPER_ADMIN" ? stations : stations.filter((station) => allowedStationIds.has(station.id))),
     [allowedStationIds, permissions, stations],
   );
-  const visibleVariables = useMemo(
-    () => (!permissions || permissions.role === "SUPER_ADMIN" ? variables : variables.filter((variable) => allowedStationIds.has(variable.stationId))),
-    [allowedStationIds, permissions, variables],
-  );
+  const visibleVariables = useMemo(() => {
+    if (!filters.stationId) {
+      return [];
+    }
+    if (!permissions || permissions.role === "SUPER_ADMIN") {
+      return variables;
+    }
+    return variables.filter((variable) => allowedStationIds.has(variable.stationId));
+  }, [allowedStationIds, filters.stationId, permissions, variables]);
   const scopedVariables = useMemo(
     () => filterVariablesByScope(visibleVariables, stationById, { ...filters, measurementTypes: [] }),
     [filters, stationById, visibleVariables],
@@ -117,6 +130,10 @@ export function MeasurementsPage() {
   const chartSeries = useMemo(
     () => buildSeries(filteredMeasurements, selectedVariables),
     [filteredMeasurements, selectedVariables],
+  );
+  const measurementsPagination = useClientPagination(
+    filteredMeasurements,
+    25,
   );
 
   const visibleSeriesCount = chartSeries.filter((series) => series.points.length > 0).length;
@@ -171,6 +188,7 @@ export function MeasurementsPage() {
       return;
     }
 
+    measurementsPagination.resetPage();
     await generateChart(
       {
         ...filters,
@@ -205,7 +223,7 @@ export function MeasurementsPage() {
         stations={scopedStations}
         variables={visibleVariables}
         measurementTypes={measurementTypeOptions}
-        isLoading={isLoading}
+        isLoading={isLoading || variablesLoading}
         error={validationError}
         onChange={updateFilters}
         onGenerate={handleGenerateChart}
@@ -249,7 +267,18 @@ export function MeasurementsPage() {
               <CardDescription>{filteredMeasurements.length.toLocaleString()} readings returned by the latest chart query</CardDescription>
             </CardHeader>
             <CardContent>
-              <MeasurementTable measurements={filteredMeasurements} variables={selectedVariables} />
+              <MeasurementTable measurements={measurementsPagination.paginatedItems} variables={selectedVariables} />
+              <div className="mt-4">
+                <PaginationControls
+                  page={measurementsPagination.page}
+                  totalPages={measurementsPagination.totalPages}
+                  totalItems={measurementsPagination.totalItems}
+                  pageSize={measurementsPagination.pageSize}
+                  label="readings"
+                  onPageChange={measurementsPagination.setPage}
+                  onPageSizeChange={measurementsPagination.setPageSize}
+                />
+              </div>
             </CardContent>
           </Card>
         </>

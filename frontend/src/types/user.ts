@@ -25,6 +25,7 @@ export interface User {
   updatedAt: string | null;
   farmIds: number[];
   stationIds: number[];
+  variableIds: number[];
   allowedMeasurementTypes: MeasurementType[];
 }
 
@@ -36,6 +37,7 @@ export interface UserPayload {
   status: UserStatus;
   farmIds?: number[];
   stationIds?: number[];
+  variableIds?: number[];
   allowedMeasurementTypes?: MeasurementType[];
 }
 
@@ -43,6 +45,7 @@ export interface UserPermissions {
   role: Role;
   farmIds: number[];
   stationIds: number[];
+  variableIds: number[];
   allowedMeasurementTypes: MeasurementType[];
 }
 

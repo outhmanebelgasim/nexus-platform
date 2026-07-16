@@ -40,7 +40,7 @@ export interface ChartSeries {
   points: Array<{ time: string; timestamp: number; value: number }>;
 }
 
-export function resolveTimeRange(filters: MeasurementAnalyticsFilters) {
+export function resolveTimeRange(filters: MeasurementAnalyticsFilters, now = new Date()) {
   if (filters.timeRange === "custom") {
     return {
       start: filters.start,
@@ -49,7 +49,7 @@ export function resolveTimeRange(filters: MeasurementAnalyticsFilters) {
   }
 
   const hours = presetHours[filters.timeRange] ?? 24;
-  const end = new Date();
+  const end = now;
   const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
   return {
     start: start.toISOString(),

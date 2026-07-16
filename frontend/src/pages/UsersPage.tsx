@@ -1,9 +1,14 @@
-import { BarChart3, Building2, Check, CloudSun, Cpu, Edit, Leaf, MapPin, Plus, RefreshCcw, Search, Shield, Sprout, Trash2, UserX, Users } from "lucide-react";
+import { BarChart3, Building2, Check, MapPin, Plus, RefreshCcw, Shield, UserX, Users } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ActionIconButton } from "@/components/shared/ActionIconButton";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PaginationControls } from "@/components/shared/PaginationControls";
+import { SearchInput } from "@/components/shared/SearchInput";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,17 +20,22 @@ import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFarms } from "@/hooks/useFarms";
 import { useAuth } from "@/hooks/useAuth";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
+import { getApiErrorMessage } from "@/lib/api";
+import { measurementVariableService } from "@/services/measurementVariableService";
 import { userService } from "@/services/userService";
-import type { MeasurementType, Role, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
+import type { MeasurementVariable } from "@/types/measurementVariable";
+import type { Role, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 import { formatDateTime } from "@/utils/format";
 
 type FormMode = "closed" | "create" | "edit";
 type RoleFilter = "ALL" | Role;
 type UserFormValues = UserPayload & {
   confirmPassword?: string;
+  chartVariableIds?: number[];
 };
 type UserFieldErrors = Partial<Record<keyof UserFormValues, string>>;
 
@@ -40,21 +50,6 @@ const createUserSchema = baseUserSchema.extend({
   password: z.string().min(8, "Password must contain at least 8 characters."),
   confirmPassword: z.string().min(1, "Please confirm the password."),
 });
-
-const measurementTypeOptions: MeasurementType[] = [
-  "AIR_TEMPERATURE",
-  "SOIL_TEMPERATURE",
-  "RELATIVE_HUMIDITY",
-  "SOIL_MOISTURE",
-  "WIND_SPEED",
-  "WIND_DIRECTION",
-  "SOLAR_RADIATION",
-  "RAINFALL",
-  "ET",
-  "PRESSURE",
-  "BATTERY_VOLTAGE",
-  "INTERNAL_TECHNICAL_DATA",
-];
 
 const superAdminRoleFilterOptions: Array<{ label: string; value: RoleFilter }> = [
   { label: "All", value: "ALL" },
@@ -73,33 +68,6 @@ const adminRoleFilterOptions: Array<{ label: string; value: RoleFilter }> = [
 function formatMeasurementType(type: string) {
   return type.replaceAll("_", " ");
 }
-
-const measurementGroups: Array<{ title: string; description: string; icon: typeof CloudSun; types: MeasurementType[] }> = [
-  {
-    title: "Weather",
-    description: "Atmospheric and rainfall telemetry",
-    icon: CloudSun,
-    types: ["AIR_TEMPERATURE", "RELATIVE_HUMIDITY", "WIND_SPEED", "WIND_DIRECTION", "PRESSURE", "RAINFALL", "SOLAR_RADIATION"],
-  },
-  {
-    title: "Soil",
-    description: "Soil temperature and moisture signals",
-    icon: Sprout,
-    types: ["SOIL_TEMPERATURE", "SOIL_MOISTURE"],
-  },
-  {
-    title: "Agronomy",
-    description: "Crop water demand indicators",
-    icon: Leaf,
-    types: ["ET"],
-  },
-  {
-    title: "System",
-    description: "Device health and technical readings",
-    icon: Cpu,
-    types: ["BATTERY_VOLTAGE", "INTERNAL_TECHNICAL_DATA"],
-  },
-];
 
 interface FormSectionProps {
   title: string;
@@ -123,8 +91,20 @@ function toggleNumber(values: number[], value: number) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
-function toggleMeasurementType(values: MeasurementType[], value: MeasurementType) {
-  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+function variableLabel(variable: MeasurementVariable) {
+  return variable.displayName?.trim() || variable.code;
+}
+
+function variableGroup() {
+  return "Imported measurement variables";
+}
+
+function variableDescription(variable: MeasurementVariable, stationNameById: Map<number, string>) {
+  const parts = [stationNameById.get(variable.stationId) ?? `Station #${variable.stationId}`, variable.code];
+  if (variable.unit) {
+    parts.push(variable.unit);
+  }
+  return parts.join(" - ");
 }
 
 export function UsersPage() {
@@ -134,6 +114,9 @@ export function UsersPage() {
   const { stations } = useStations();
   const { showToast } = useToast();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [availableVariables, setAvailableVariables] = useState<MeasurementVariable[]>([]);
+  const [variablesLoading, setVariablesLoading] = useState(false);
+  const [variablesError, setVariablesError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
   const [formMode, setFormMode] = useState<FormMode>("closed");
@@ -144,6 +127,7 @@ export function UsersPage() {
   const [fieldErrors, setFieldErrors] = useState<UserFieldErrors>({});
   const [farmSearch, setFarmSearch] = useState("");
   const [stationSearch, setStationSearch] = useState("");
+  const [chartVariableSearch, setChartVariableSearch] = useState("");
   const [formValues, setFormValues] = useState<UserFormValues>({
     fullName: "",
     email: "",
@@ -151,6 +135,7 @@ export function UsersPage() {
     confirmPassword: "",
     role: "VIEWER",
     status: "ACTIVE",
+    chartVariableIds: [],
   });
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
@@ -208,15 +193,71 @@ export function UsersPage() {
     const allowedStationIds = new Set(permissions.stationIds);
     return stations.filter((station) => allowedStationIds.has(station.id));
   }, [isSuperAdmin, permissions, stations]);
-  const availableMeasurementTypes = isSuperAdmin || !permissions ? measurementTypeOptions : permissions.allowedMeasurementTypes;
+  const assignableVariableIdSet = useMemo(() => {
+    if (isSuperAdmin) {
+      return null;
+    }
+    return new Set(permissions?.variableIds ?? []);
+  }, [isSuperAdmin, permissions]);
   const farmNameById = useMemo(() => new Map(farms.map((farm) => [farm.id, farm.name])), [farms]);
   const stationNameById = useMemo(() => new Map(stations.map((station) => [station.id, `${station.name} (${station.code})`])), [stations]);
-  const selectedFarmIds = formValues.farmIds ?? [];
-  const selectedStationIds = formValues.stationIds ?? [];
-  const selectedMeasurementTypes = formValues.allowedMeasurementTypes ?? [];
+  const selectedFarmIds = useMemo(() => formValues.farmIds ?? [], [formValues.farmIds]);
+  const selectedStationIds = useMemo(() => formValues.stationIds ?? [], [formValues.stationIds]);
+  const selectedChartVariableIds = useMemo(() => formValues.chartVariableIds ?? [], [formValues.chartVariableIds]);
   const selectedFarmSet = useMemo(() => new Set(selectedFarmIds), [selectedFarmIds]);
   const selectedStationSet = useMemo(() => new Set(selectedStationIds), [selectedStationIds]);
-  const selectedMeasurementSet = useMemo(() => new Set(selectedMeasurementTypes), [selectedMeasurementTypes]);
+  const selectedChartVariableSet = useMemo(() => new Set(selectedChartVariableIds), [selectedChartVariableIds]);
+  const scopedStationIds = useMemo(() => {
+    const ids = new Set(selectedStationIds);
+    if (selectedFarmIds.length > 0) {
+      stations
+        .filter((station) => selectedFarmSet.has(station.farmId))
+        .forEach((station) => ids.add(station.id));
+    }
+    return Array.from(ids);
+  }, [selectedFarmIds.length, selectedStationIds, selectedFarmSet, stations]);
+  const scopedStationSet = useMemo(() => new Set(scopedStationIds), [scopedStationIds]);
+  const variableById = useMemo(() => new Map(availableVariables.map((variable) => [variable.id, variable])), [availableVariables]);
+  const availableChartVariables = useMemo(() => {
+    return availableVariables
+      .filter((variable) => {
+        if (!scopedStationSet.has(variable.stationId)) {
+          return false;
+        }
+        if (isSuperAdmin) {
+          return true;
+        }
+        if (!assignableVariableIdSet) {
+          return false;
+        }
+        return assignableVariableIdSet.has(variable.id);
+      })
+      .sort((first, second) => {
+        const firstStationIndex = scopedStationIds.indexOf(first.stationId);
+        const secondStationIndex = scopedStationIds.indexOf(second.stationId);
+        if (firstStationIndex !== secondStationIndex) {
+          return firstStationIndex - secondStationIndex;
+        }
+        return variableLabel(first).localeCompare(variableLabel(second));
+      });
+  }, [assignableVariableIdSet, availableVariables, isSuperAdmin, scopedStationIds, scopedStationSet]);
+  const visibleChartVariables = useMemo(() => {
+    const query = chartVariableSearch.trim().toLowerCase();
+    return availableChartVariables.filter((variable) => {
+      const label = variableLabel(variable).toLowerCase();
+      const type = variable.measurementType ? formatMeasurementType(variable.measurementType).toLowerCase() : "";
+      const station = stationNameById.get(variable.stationId)?.toLowerCase() ?? "";
+      return !query || [label, variable.code.toLowerCase(), type, station, variable.unit?.toLowerCase() ?? ""].some((value) => value.includes(query));
+    });
+  }, [availableChartVariables, chartVariableSearch, stationNameById]);
+  const groupedChartVariables = useMemo(() => {
+    const groups = new Map<string, MeasurementVariable[]>();
+    visibleChartVariables.forEach((variable) => {
+      const group = stationNameById.get(variable.stationId) ?? variableGroup();
+      groups.set(group, [...(groups.get(group) ?? []), variable]);
+    });
+    return Array.from(groups.entries());
+  }, [stationNameById, visibleChartVariables]);
   const visibleFarmOptions = useMemo(() => {
     const query = farmSearch.trim().toLowerCase();
     if (!query) {
@@ -234,6 +275,120 @@ export function UsersPage() {
   }, [availableStations, stationSearch]);
   const selectedFarmNames = selectedFarmIds.map((farmId) => farmNameById.get(farmId) ?? `Farm #${farmId}`);
   const selectedStationNames = selectedStationIds.map((stationId) => stationNameById.get(stationId) ?? `Station #${stationId}`);
+  const selectedChartVariables = selectedChartVariableIds
+    .map((variableId) => variableById.get(variableId))
+    .filter((variable): variable is MeasurementVariable => Boolean(variable));
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadVariablesForStations() {
+      if (formMode === "closed") {
+        setAvailableVariables([]);
+        setVariablesLoading(false);
+        setVariablesError(null);
+        return;
+      }
+
+      if (scopedStationIds.length === 0) {
+        await Promise.resolve();
+        if (ignore) {
+          return;
+        }
+        setAvailableVariables([]);
+        setFormValues((current) => {
+          if ((current.chartVariableIds ?? []).length === 0 && (current.variableIds ?? []).length === 0 && (current.allowedMeasurementTypes ?? []).length === 0) {
+            return current;
+          }
+          return {
+            ...current,
+            chartVariableIds: [],
+            variableIds: [],
+            allowedMeasurementTypes: [],
+          };
+        });
+        setVariablesLoading(false);
+        setVariablesError(null);
+        return;
+      }
+
+      setVariablesLoading(true);
+      setVariablesError(null);
+
+      try {
+        const results = await Promise.all(
+          scopedStationIds.map((stationId) => measurementVariableService.findAll({ stationId, active: true })),
+        );
+        if (ignore) {
+          return;
+        }
+
+        const uniqueVariables = new Map<number, MeasurementVariable>();
+        results.flat().forEach((variable) => uniqueVariables.set(variable.id, variable));
+        const loadedVariables = Array.from(uniqueVariables.values());
+        const assignableVariables = loadedVariables.filter((variable) => {
+          if (isSuperAdmin) {
+            return true;
+          }
+          if (!assignableVariableIdSet) {
+            return false;
+          }
+          return assignableVariableIdSet.has(variable.id);
+        });
+        const assignableIds = new Set(assignableVariables.map((variable) => variable.id));
+
+        setAvailableVariables(loadedVariables);
+        setFormValues((current) => {
+          const currentIds = current.chartVariableIds ?? [];
+          const nextIds = currentIds.filter((variableId) => assignableIds.has(variableId));
+          const unchanged =
+            nextIds.length === currentIds.length &&
+            nextIds.every((variableId, index) => variableId === currentIds[index]);
+          if (unchanged) {
+            return current;
+          }
+          return {
+            ...current,
+            chartVariableIds: nextIds,
+            variableIds: nextIds,
+            allowedMeasurementTypes: [],
+          };
+        });
+      } catch (loadError) {
+        if (!ignore) {
+          setAvailableVariables([]);
+          setVariablesError(getApiErrorMessage(loadError));
+        }
+      } finally {
+        if (!ignore) {
+          setVariablesLoading(false);
+        }
+      }
+    }
+
+    void loadVariablesForStations();
+
+    return () => {
+      ignore = true;
+    };
+  }, [assignableVariableIdSet, formMode, isSuperAdmin, scopedStationIds]);
+
+  const applyChartVariableIds = (variableIds: number[]) => {
+    setFormValues((current) => ({
+      ...current,
+      chartVariableIds: variableIds,
+      variableIds,
+      allowedMeasurementTypes: [],
+    }));
+  };
+
+  const handleRoleChange = (role: Role) => {
+    setFormValues((current) => ({
+      ...current,
+      role,
+      allowedMeasurementTypes: [],
+    }));
+  };
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -247,6 +402,7 @@ export function UsersPage() {
       return matchesRole && matchesSearch;
     });
   }, [effectiveRoleFilter, searchQuery, users]);
+  const usersPagination = useClientPagination(visibleUsers, 10);
 
   const openCreateForm = () => {
     setSelectedUser(null);
@@ -254,6 +410,7 @@ export function UsersPage() {
     setFieldErrors({});
     setFarmSearch("");
     setStationSearch("");
+    setChartVariableSearch("");
     setFormValues({
       fullName: "",
       email: "",
@@ -264,6 +421,7 @@ export function UsersPage() {
       farmIds: [],
       stationIds: [],
       allowedMeasurementTypes: [],
+      chartVariableIds: [],
     });
     setFormMode("create");
   };
@@ -279,6 +437,7 @@ export function UsersPage() {
     setFieldErrors({});
     setFarmSearch("");
     setStationSearch("");
+    setChartVariableSearch("");
     setFormValues({
       fullName: user.fullName,
       email: user.email,
@@ -288,7 +447,9 @@ export function UsersPage() {
       status: user.status,
       farmIds: user.farmIds ?? [],
       stationIds: user.stationIds ?? [],
+      variableIds: user.variableIds ?? [],
       allowedMeasurementTypes: user.allowedMeasurementTypes ?? [],
+      chartVariableIds: user.variableIds ?? [],
     });
     setFormMode("edit");
   };
@@ -324,6 +485,12 @@ export function UsersPage() {
       return;
     }
 
+    if (formValues.role !== "SUPER_ADMIN" && scopedStationIds.length > 0 && selectedChartVariableIds.length === 0) {
+      setFieldErrors({ chartVariableIds: "Select at least one measurement variable." });
+      setFormError("Select at least one measurement variable for chart access.");
+      return;
+    }
+
     try {
       const payload: UserPayload = {
         fullName: formValues.fullName,
@@ -332,7 +499,8 @@ export function UsersPage() {
         status: formValues.status,
         farmIds: formValues.farmIds ?? [],
         stationIds: formValues.stationIds ?? [],
-        allowedMeasurementTypes: formValues.allowedMeasurementTypes ?? [],
+        variableIds: formValues.chartVariableIds ?? [],
+        allowedMeasurementTypes: [],
         ...(formMode === "create" ? { password: formValues.password } : {}),
       };
       if (formMode === "edit" && selectedUser) {
@@ -418,7 +586,7 @@ export function UsersPage() {
         </div>
       </PageHeader>
 
-      {error ? <Alert>{error}</Alert> : null}
+      {error || variablesError ? <Alert>{error ?? variablesError}</Alert> : null}
 
       <Card className="shadow-sm">
         <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -428,31 +596,21 @@ export function UsersPage() {
           </div>
           <div className="grid w-full items-center gap-3 sm:grid-cols-[12rem_minmax(0,24rem)] lg:w-auto">
             <Label htmlFor="roleFilter" className="sr-only">Filter by role</Label>
-            <Select id="roleFilter" value={effectiveRoleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}>
+            <Select id="roleFilter" value={effectiveRoleFilter} onChange={(event) => { setRoleFilter(event.target.value as RoleFilter); usersPagination.resetPage(); }}>
               {availableRoleFilterOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </Select>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <Input className="pl-9" placeholder="Search users..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
-            </div>
+            <SearchInput placeholder="Search users..." value={searchQuery} onChange={(value) => { setSearchQuery(value); usersPagination.resetPage(); }} />
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="grid gap-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse rounded-md bg-muted" />
-              ))}
-            </div>
+            <LoadingState />
           ) : visibleUsers.length === 0 ? (
-            <div className="rounded-md border border-dashed p-8 text-center">
-              <p className="font-medium">No users found</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create a user or adjust the search filter.</p>
-            </div>
+            <EmptyState title="No users found" description="Create a user or adjust the search filter." />
           ) : (
             <Table>
               <TableHeader>
@@ -466,7 +624,7 @@ export function UsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleUsers.map((user) => (
+                {usersPagination.paginatedItems.map((user) => (
                   <TableRow key={user.id} className="hover:bg-accent/30">
                     <TableCell>
                       <p className="font-medium">{user.fullName}</p>
@@ -503,10 +661,7 @@ export function UsersPage() {
                     <TableCell>{formatDateTime(user.createdAt)}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" size="sm" onClick={() => openEditForm(user)} disabled={isSaving || !canManageUser(user)}>
-                          <Edit className="h-4 w-4" aria-hidden="true" />
-                          Edit
-                        </Button>
+                        <ActionIconButton action="edit" label="Edit user" onClick={() => openEditForm(user)} disabled={isSaving || !canManageUser(user)} />
                         {user.status === "DISABLED" ? (
                           <Button type="button" variant="outline" size="sm" onClick={() => activateUser(user)} disabled={isSaving || !canManageUser(user)}>
                             Activate
@@ -524,16 +679,7 @@ export function UsersPage() {
                           </Button>
                         )}
                         {isSuperAdmin ? (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setUserToDelete(user)}
-                            disabled={isSaving || user.id === currentUser?.id}
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                            Delete
-                          </Button>
+                          <ActionIconButton action="delete" label="Delete user" onClick={() => setUserToDelete(user)} disabled={isSaving || user.id === currentUser?.id} />
                         ) : null}
                       </div>
                     </TableCell>
@@ -542,6 +688,19 @@ export function UsersPage() {
               </TableBody>
             </Table>
           )}
+          {visibleUsers.length > 0 ? (
+            <div className="mt-4">
+              <PaginationControls
+                page={usersPagination.page}
+                totalPages={usersPagination.totalPages}
+                totalItems={usersPagination.totalItems}
+                pageSize={usersPagination.pageSize}
+                label="users"
+                onPageChange={usersPagination.setPage}
+                onPageSizeChange={usersPagination.setPageSize}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -625,7 +784,7 @@ export function UsersPage() {
               ) : null}
               <div className="space-y-2">
                 <Label htmlFor="role">Platform role</Label>
-                <Select id="role" value={formValues.role} onChange={(event) => setFormValues((current) => ({ ...current, role: event.target.value as Role }))}>
+                <Select id="role" value={formValues.role} onChange={(event) => handleRoleChange(event.target.value as Role)}>
                   {availableRoles.map((role) => (
                     <option key={role} value={role}>
                       {role.replace("_", " ")}
@@ -663,10 +822,7 @@ export function UsersPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <Input className="pl-9" placeholder="Search farms..." value={farmSearch} onChange={(event) => setFarmSearch(event.target.value)} />
-                </div>
+                <SearchInput placeholder="Search farms..." value={farmSearch} onChange={setFarmSearch} />
                 <div className="flex flex-wrap gap-2">
                   {selectedFarmNames.length === 0 ? (
                     <span className="text-xs text-muted-foreground">Select at least one farm or station.</span>
@@ -676,7 +832,7 @@ export function UsersPage() {
                 </div>
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {visibleFarmOptions.length === 0 ? (
-                    <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No farms match this search.</p>
+                    <EmptyState title="No farms found" description="No farms match this search." />
                   ) : (
                     visibleFarmOptions.map((farm) => {
                       const checked = selectedFarmSet.has(farm.id);
@@ -733,10 +889,7 @@ export function UsersPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  <Input className="pl-9" placeholder="Search stations..." value={stationSearch} onChange={(event) => setStationSearch(event.target.value)} />
-                </div>
+                <SearchInput placeholder="Search stations..." value={stationSearch} onChange={setStationSearch} />
                 <div className="flex flex-wrap gap-2">
                   {selectedStationNames.length === 0 ? (
                     <span className="text-xs text-muted-foreground">Stations are optional when farm access covers the scope.</span>
@@ -746,7 +899,7 @@ export function UsersPage() {
                 </div>
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {visibleStationOptions.length === 0 ? (
-                    <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No stations match this search.</p>
+                    <EmptyState title="No stations found" description="No stations match this search." />
                   ) : (
                     visibleStationOptions.map((station) => {
                       const checked = selectedStationSet.has(station.id);
@@ -781,76 +934,96 @@ export function UsersPage() {
             </div>
           </FormSection>
 
-          <FormSection title="Chart access" description="Chart access controls which measurement types this user can visualize in analytics and dashboards.">
+          <FormSection title="Chart access" description="Chart access controls which imported measurement variables this user can visualize in analytics and dashboards.">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <BarChart3 className="h-4 w-4 text-primary" aria-hidden="true" />
-                {selectedMeasurementTypes.length} measurement types selected
+                {selectedChartVariableIds.length} variables selected
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, allowedMeasurementTypes: availableMeasurementTypes }))}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => applyChartVariableIds(availableChartVariables.map((variable) => variable.id))} disabled={availableChartVariables.length === 0}>
                   Select all
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, allowedMeasurementTypes: [] }))}>
-                  Clear
+                <Button type="button" variant="ghost" size="sm" onClick={() => applyChartVariableIds([])} disabled={selectedChartVariableIds.length === 0}>
+                  Clear all
                 </Button>
               </div>
             </div>
-            {selectedMeasurementTypes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Select at least one measurement type.</p>
-            ) : (
+
+            {selectedChartVariables.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {selectedMeasurementTypes.map((measurementType) => (
-                  <Badge key={measurementType}>{formatMeasurementType(measurementType)}</Badge>
+                {selectedChartVariables.map((variable) => (
+                  <Badge key={variable.id} className="gap-2">
+                    {variableLabel(variable)}
+                    <button
+                      type="button"
+                      className="rounded-full text-xs leading-none text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`Remove ${variableLabel(variable)}`}
+                      onClick={() => applyChartVariableIds(selectedChartVariableIds.filter((variableId) => variableId !== variable.id))}
+                    >
+                      x
+                    </button>
+                  </Badge>
                 ))}
               </div>
-            )}
-            <div className="grid gap-3 lg:grid-cols-2">
-              {measurementGroups.map((group) => {
-                const Icon = group.icon;
-                return (
-                  <div key={group.title} className="rounded-lg border bg-card p-4">
-                    <div className="mb-3 flex items-start gap-3">
-                      <div className="rounded-md bg-primary/10 p-2 text-primary">
-                        <Icon className="h-4 w-4" aria-hidden="true" />
+            ) : null}
+
+            {fieldErrors.chartVariableIds ? <p className="text-sm text-destructive">{fieldErrors.chartVariableIds}</p> : null}
+
+            <div className="space-y-4">
+              <SearchInput placeholder="Search variables..." value={chartVariableSearch} onChange={setChartVariableSearch} />
+              {variablesError ? (
+                <Alert>{variablesError}</Alert>
+              ) : variablesLoading ? (
+                <LoadingState rows={3} rowClassName="h-14" />
+              ) : scopedStationIds.length === 0 ? (
+                <EmptyState title="No stations selected" description="Select at least one station or farm to load assignable measurement variables." />
+              ) : availableVariables.length === 0 ? (
+                <EmptyState title="No active variables found" description="The selected stations do not currently have active imported measurement variables." />
+              ) : availableChartVariables.length === 0 ? (
+                <EmptyState title="No assignable variables" description="Your account cannot assign variables inside the selected station scope." />
+              ) : groupedChartVariables.length === 0 ? (
+                <EmptyState title="No variables found" description="No measurement variables match this search." />
+              ) : (
+                <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
+                  {groupedChartVariables.map(([group, groupVariables]) => (
+                    <div key={group} className="rounded-lg border bg-card p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h4 className="font-medium">{group}</h4>
+                        <span className="text-xs text-muted-foreground">{groupVariables.length} variables</span>
                       </div>
-                      <div>
-                        <h4 className="font-medium">{group.title}</h4>
-                        <p className="text-xs text-muted-foreground">{group.description}</p>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {groupVariables.map((variable) => {
+                          const checked = selectedChartVariableSet.has(variable.id);
+                          return (
+                            <label
+                              key={variable.id}
+                              className={`flex cursor-pointer items-start gap-3 rounded-md border bg-background p-3 text-sm transition-colors hover:border-primary/50 hover:bg-accent/40 ${
+                                checked ? "border-primary bg-primary/5 text-primary" : ""
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-1 h-4 w-4 rounded border-input accent-primary"
+                                checked={checked}
+                                onChange={() => applyChartVariableIds(toggleNumber(selectedChartVariableIds, variable.id))}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">
+                                  {variableLabel(variable)}
+                                  {variable.unit ? <span className="ml-1 text-xs text-muted-foreground">({variable.unit})</span> : null}
+                                </span>
+                                <span className="block truncate text-xs text-muted-foreground">{variableDescription(variable, stationNameById)}</span>
+                              </span>
+                              {checked ? <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {group.types.map((measurementType) => {
-                        const checked = selectedMeasurementSet.has(measurementType);
-                        const unavailable = !availableMeasurementTypes.includes(measurementType);
-                        return (
-                          <label
-                            key={measurementType}
-                            className={`flex items-center gap-3 rounded-md border bg-background px-3 py-2 text-sm transition-colors ${
-                              unavailable ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-primary/50 hover:bg-accent/40"
-                            } ${checked ? "border-primary bg-primary/5 text-primary" : ""}`}
-                          >
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-input accent-primary"
-                              checked={checked}
-                              disabled={unavailable}
-                              onChange={() =>
-                                setFormValues((current) => ({
-                                  ...current,
-                                  allowedMeasurementTypes: toggleMeasurementType(current.allowedMeasurementTypes ?? [], measurementType),
-                                }))
-                              }
-                            />
-                            <span className="flex-1">{formatMeasurementType(measurementType)}</span>
-                            {checked ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                  ))}
+                </div>
+              )}
             </div>
           </FormSection>
 

@@ -3,7 +3,7 @@ export type AlertStatus = "OPEN" | "RESOLVED" | "IGNORED";
 
 export interface AlertEvent {
   id: number;
-  sensorId: number;
+  sensorId?: number;
   variableId: number;
   alertType: string;
   severity: AlertSeverity;

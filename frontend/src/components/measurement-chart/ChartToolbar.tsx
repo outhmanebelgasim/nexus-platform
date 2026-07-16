@@ -1,11 +1,11 @@
-import { Download, FileDown, Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import { ActionIconButton } from "@/components/shared/ActionIconButton";
 import { Button } from "@/components/ui/button";
 
 interface ChartToolbarProps {
   canExport: boolean;
   isFullscreen: boolean;
   onExportCsv: () => void;
-  onExportPng: () => void;
   onFullscreen: () => void;
   onResetZoom: () => void;
   onZoomIn: () => void;
@@ -16,7 +16,6 @@ export function ChartToolbar({
   canExport,
   isFullscreen,
   onExportCsv,
-  onExportPng,
   onFullscreen,
   onResetZoom,
   onZoomIn,
@@ -36,14 +35,7 @@ export function ChartToolbar({
         <RotateCcw className="h-4 w-4" aria-hidden="true" />
         Reset zoom
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onExportPng} disabled={!canExport}>
-        <Download className="h-4 w-4" aria-hidden="true" />
-        PNG
-      </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onExportCsv} disabled={!canExport}>
-        <FileDown className="h-4 w-4" aria-hidden="true" />
-        CSV
-      </Button>
+      <ActionIconButton action="csv" label="Download CSV" showLabel onClick={onExportCsv} disabled={!canExport} />
       <Button type="button" variant="outline" size="sm" onClick={onFullscreen}>
         <Maximize2 className="h-4 w-4" aria-hidden="true" />
         {isFullscreen ? "Exit fullscreen" : "Fullscreen"}

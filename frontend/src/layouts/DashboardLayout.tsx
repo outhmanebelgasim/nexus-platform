@@ -55,7 +55,7 @@ const navigationSections: NavigationSection[] = [
     items: [
       { name: "Measurements", href: "/measurements", icon: Gauge, roles: navigationAccess.measurements },
       { name: "Alerts", href: "/alerts", icon: Bell, roles: navigationAccess.alerts },
-      { name: "Import Logs", href: "/import-logs", icon: ClipboardList, roles: navigationAccess.importLogs },
+      { name: "Import Monitoring", href: "/import-monitoring", icon: ClipboardList, roles: navigationAccess.importMonitoring },
     ],
   },
   {

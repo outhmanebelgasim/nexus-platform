@@ -1,6 +1,6 @@
-import { Edit, ExternalLink, Trash2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { ActionIconButton } from "@/components/shared/ActionIconButton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Farm } from "@/types/farm";
 import { formatDateTime } from "@/utils/format";
@@ -47,14 +47,8 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                 )}
               </div>
               {onEdit && onDelete ? <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => onEdit(farm)} disabled={isSaving}>
-                  <Edit className="h-4 w-4" aria-hidden="true" />
-                  Edit
-                </Button>
-                <Button type="button" variant="destructive" size="sm" onClick={() => onDelete(farm)} disabled={isSaving}>
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Delete
-                </Button>
+                <ActionIconButton action="edit" label="Edit farm" showLabel onClick={() => onEdit(farm)} disabled={isSaving} />
+                <ActionIconButton action="delete" label="Delete farm" showLabel onClick={() => onDelete(farm)} disabled={isSaving} />
               </div> : null}
             </div>
           </article>
@@ -103,20 +97,8 @@ export function FarmTable({ farms, isSaving, onEdit, onDelete }: FarmTableProps)
                 <TableCell>{formatDateTime(farm.createdAt)}</TableCell>
                 {onEdit && onDelete ? <TableCell>
                   <div className="flex justify-end gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => onEdit(farm)} disabled={isSaving}>
-                      <Edit className="h-4 w-4" aria-hidden="true" />
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => onDelete(farm)}
-                      disabled={isSaving}
-                    >
-                      <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      Delete
-                    </Button>
+                    <ActionIconButton action="edit" label="Edit farm" onClick={() => onEdit(farm)} disabled={isSaving} />
+                    <ActionIconButton action="delete" label="Delete farm" onClick={() => onDelete(farm)} disabled={isSaving} />
                   </div>
                 </TableCell> : null}
               </TableRow>

@@ -11,6 +11,6 @@ export const navigationAccess = {
   variables: ALL_AUTHENTICATED_ROLES,
   measurements: ALL_AUTHENTICATED_ROLES,
   alerts: ALL_AUTHENTICATED_ROLES,
-  importLogs: OPERATIONAL_ROLES,
+  importMonitoring: ADMINISTRATION_ROLES,
   users: ADMINISTRATION_ROLES,
 } as const satisfies Record<string, Role[]>;

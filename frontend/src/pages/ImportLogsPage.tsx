@@ -1,13 +1,15 @@
-import { ClipboardList, Clock, Database, RefreshCcw, Search, XCircle } from "lucide-react";
+import { ClipboardList, Clock, Database, RefreshCcw, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ImportLogTable } from "@/components/importLogs/ImportLogTable";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PaginationControls } from "@/components/shared/PaginationControls";
+import { SearchInput } from "@/components/shared/SearchInput";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useImportLogs } from "@/hooks/useImportLogs";
 import type { ImportStatus } from "@/types/importLog";
 import { formatDateTime } from "@/utils/format";
@@ -29,6 +31,7 @@ export function ImportLogsPage() {
       return matchesStatus && matchesQuery;
     });
   }, [importLogs, searchQuery, status]);
+  const logsPagination = useClientPagination(visibleLogs, 10);
   const latestRun = [...importLogs].sort((first, second) => (first.startedAt ?? "").localeCompare(second.startedAt ?? "")).at(-1);
 
   return (
@@ -62,11 +65,8 @@ export function ImportLogsPage() {
             <CardDescription>{visibleLogs.length} runs shown</CardDescription>
           </div>
           <div className="grid gap-2 sm:grid-cols-[1fr_180px] lg:w-[520px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <Input className="pl-9" placeholder="Search imports..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
-            </div>
-            <Select value={status} onChange={(event) => setStatus(event.target.value as ImportStatus | "ALL")}>
+            <SearchInput placeholder="Search imports..." value={searchQuery} onChange={(value) => { setSearchQuery(value); logsPagination.resetPage(); }} />
+            <Select value={status} onChange={(event) => { setStatus(event.target.value as ImportStatus | "ALL"); logsPagination.resetPage(); }}>
               <option value="ALL">All statuses</option>
               <option value="SUCCESS">Success</option>
               <option value="PARTIAL_SUCCESS">Partial success</option>
@@ -90,8 +90,21 @@ export function ImportLogsPage() {
               </p>
             </div>
           ) : (
-            <ImportLogTable importLogs={visibleLogs} />
+            <ImportLogTable importLogs={logsPagination.paginatedItems} />
           )}
+          {visibleLogs.length > 0 ? (
+            <div className="mt-4">
+              <PaginationControls
+                page={logsPagination.page}
+                totalPages={logsPagination.totalPages}
+                totalItems={logsPagination.totalItems}
+                pageSize={logsPagination.pageSize}
+                label="runs"
+                onPageChange={logsPagination.setPage}
+                onPageSizeChange={logsPagination.setPageSize}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

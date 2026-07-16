@@ -1,17 +1,22 @@
-import { Database, RadioTower, RefreshCcw, Search, SlidersHorizontal } from "lucide-react";
+import { Database, RadioTower, RefreshCcw, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { MeasurementVariableTable } from "@/components/variables/MeasurementVariableTable";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { PaginationControls } from "@/components/shared/PaginationControls";
+import { SearchInput } from "@/components/shared/SearchInput";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
+import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
 import { useStations } from "@/hooks/useStations";
 import { getApiErrorMessage } from "@/lib/api";
@@ -55,6 +60,7 @@ export function VariablesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<VariableActiveFilter>("all");
   const [editingVariable, setEditingVariable] = useState<MeasurementVariable | null>(null);
+  const [variableToDelete, setVariableToDelete] = useState<MeasurementVariable | null>(null);
   const [form, setForm] = useState<{
     displayName: string;
     description: string;
@@ -63,6 +69,7 @@ export function VariablesPage() {
     active: boolean;
   }>({ displayName: "", description: "", unit: "", measurementType: "", active: true });
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { stations, isLoading: stationsLoading, error: stationsError } = useStations();
   const { variables, isLoading, error, loadVariables, setVariables } = useMeasurementVariables({
@@ -70,6 +77,7 @@ export function VariablesPage() {
     active: activeFilterValue(activeFilter),
     search: searchQuery,
   });
+  const variablesPagination = useClientPagination(variables, 10);
 
   const assignedStationIds = useMemo(() => new Set(user?.stationIds ?? []), [user?.stationIds]);
   const canEditVariable = (variable: MeasurementVariable) => {
@@ -88,6 +96,7 @@ export function VariablesPage() {
 
   const openEditDialog = (variable: MeasurementVariable) => {
     setSaveError(null);
+    setDeleteError(null);
     setEditingVariable(variable);
     setForm({
       displayName: variable.displayName ?? "",
@@ -123,6 +132,11 @@ export function VariablesPage() {
     }
   };
 
+  const confirmDelete = () => {
+    setDeleteError("The current API does not expose a measurement-variable delete endpoint. No variable was deleted.");
+    setVariableToDelete(null);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -144,7 +158,7 @@ export function VariablesPage() {
         </div>
       </PageHeader>
 
-      {error || stationsError ? <Alert>{error ?? stationsError}</Alert> : null}
+      {error || stationsError || deleteError ? <Alert>{error ?? stationsError ?? deleteError}</Alert> : null}
 
       <Card className="shadow-sm">
         <CardHeader className="gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -153,14 +167,11 @@ export function VariablesPage() {
             <CardDescription>{variables.length} measurement variables shown</CardDescription>
           </div>
           <div className="grid gap-2 md:grid-cols-[1fr_220px_160px] xl:w-[760px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              <Input className="pl-9" placeholder="Search variables..." value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} />
-            </div>
+            <SearchInput placeholder="Search variables..." value={searchQuery} onChange={(value) => { setSearchQuery(value); variablesPagination.resetPage(); }} />
             <Select
               value={selectedStationId ?? ""}
               disabled={stationsLoading}
-              onChange={(event) => setSelectedStationId(event.target.value ? Number(event.target.value) : undefined)}
+              onChange={(event) => { setSelectedStationId(event.target.value ? Number(event.target.value) : undefined); variablesPagination.resetPage(); }}
             >
               <option value="">All stations</option>
               {stations.map((station) => (
@@ -169,7 +180,7 @@ export function VariablesPage() {
                 </option>
               ))}
             </Select>
-            <Select value={activeFilter} onChange={(event) => setActiveFilter(event.target.value as VariableActiveFilter)}>
+            <Select value={activeFilter} onChange={(event) => { setActiveFilter(event.target.value as VariableActiveFilter); variablesPagination.resetPage(); }}>
               <option value="all">All statuses</option>
               <option value="active">Active only</option>
               <option value="inactive">Inactive only</option>
@@ -178,19 +189,25 @@ export function VariablesPage() {
         </CardHeader>
         <CardContent>
           {isLoading || stationsLoading ? (
-            <div className="grid gap-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className="h-16 animate-pulse rounded-md bg-muted" />
-              ))}
-            </div>
+            <LoadingState />
           ) : variables.length === 0 ? (
-            <div className="rounded-md border border-dashed p-8 text-center">
-              <p className="font-medium">No variables found</p>
-              <p className="mt-1 text-sm text-muted-foreground">The API did not return measurement variables for the current filters.</p>
-            </div>
+            <EmptyState title="No variables found" description="The API did not return measurement variables for the current filters." />
           ) : (
-            <MeasurementVariableTable variables={variables} stations={stations} canEdit={canEditVariable} onEdit={openEditDialog} />
+            <MeasurementVariableTable variables={variablesPagination.paginatedItems} stations={stations} canEdit={canEditVariable} onEdit={openEditDialog} onDelete={setVariableToDelete} />
           )}
+          {variables.length > 0 ? (
+            <div className="mt-4">
+              <PaginationControls
+                page={variablesPagination.page}
+                totalPages={variablesPagination.totalPages}
+                totalItems={variablesPagination.totalItems}
+                pageSize={variablesPagination.pageSize}
+                label="variables"
+                onPageChange={variablesPagination.setPage}
+                onPageSizeChange={variablesPagination.setPageSize}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -263,6 +280,16 @@ export function VariablesPage() {
           </div>
         </div>
       </Dialog>
+
+      <ConfirmDialog
+        open={variableToDelete !== null}
+        title="Delete Variable"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        isLoading={false}
+        onCancel={() => setVariableToDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

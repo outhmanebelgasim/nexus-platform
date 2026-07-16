@@ -42,7 +42,7 @@ export function ChartBuilder({
   const filteredStations = filters.farmId
     ? stations.filter((station) => station.farmId === filters.farmId)
     : stations;
-  const filteredVariables = variables.filter((variable) => variable.stationId === filters.stationId && variable.active);
+  const filteredVariables = variables.filter((variable) => variable.stationId === filters.stationId && (filters.includeInactiveVariables || variable.active));
 
   return (
     <Card className="shadow-sm">
@@ -152,6 +152,21 @@ export function ChartBuilder({
                 })
               )}
             </div>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-border"
+                checked={Boolean(filters.includeInactiveVariables)}
+                onChange={(event) =>
+                  onChange({
+                    includeInactiveVariables: event.target.checked,
+                    variableIds: [],
+                    measurementTypes: [],
+                  })
+                }
+              />
+              Include inactive variables
+            </label>
           </div>
         </div>
 

@@ -3,16 +3,46 @@ import type { Measurement, MeasurementFilters } from "@/types/measurement";
 
 const MEASUREMENTS_ENDPOINT = "/api/measurements";
 
+function serializeMeasurementParams(params: Record<string, unknown>) {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== undefined && item !== null && item !== "") {
+          searchParams.append(key, String(item));
+        }
+      });
+      return;
+    }
+
+    searchParams.append(key, String(value));
+  });
+
+  return searchParams.toString();
+}
+
+export function buildMeasurementRequestParams(filters: MeasurementFilters = {}) {
+  return {
+    variableId: filters.variableId,
+    stationId: filters.stationId,
+    variableIds: filters.variableIds,
+    start: filters.start,
+    end: filters.end,
+    measurementTypes: filters.measurementTypes,
+  };
+}
+
 export const measurementService = {
   async findAll(filters: MeasurementFilters = {}) {
     const response = await apiClient.get<Measurement[]>(MEASUREMENTS_ENDPOINT, {
-      params: {
-        variableId: filters.variableId,
-        stationId: filters.stationId,
-        variableIds: filters.variableIds,
-        start: filters.start,
-        end: filters.end,
-        measurementTypes: filters.measurementTypes,
+      params: buildMeasurementRequestParams(filters),
+      paramsSerializer: {
+        serialize: serializeMeasurementParams,
       },
     });
     return response.data;

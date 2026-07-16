@@ -27,6 +27,7 @@ export interface MeasurementAnalyticsFilters {
   stationId?: number;
   variableIds: number[];
   measurementTypes: string[];
+  includeInactiveVariables?: boolean;
   timeRange: TimeRangePreset;
   start?: string;
   end?: string;

@@ -5,7 +5,7 @@ import { navigationAccess } from "@/lib/navigationAccess";
 import { AlertsPage } from "@/pages/AlertsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { FarmsPage } from "@/pages/FarmsPage";
-import { ImportLogsPage } from "@/pages/ImportLogsPage";
+import { ImporterMonitoringPage } from "@/pages/ImporterMonitoringPage";
 import { MeasurementsPage } from "@/pages/MeasurementsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { StationsPage } from "@/pages/StationsPage";
@@ -31,8 +31,9 @@ export default function App() {
           <Route path="/sensors" element={<Navigate to="/variables" replace />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
-          <Route element={<ProtectedRoute roles={navigationAccess.importLogs} />}>
-            <Route path="/import-logs" element={<ImportLogsPage />} />
+          <Route element={<ProtectedRoute roles={navigationAccess.importMonitoring} />}>
+            <Route path="/import-monitoring" element={<ImporterMonitoringPage />} />
+            <Route path="/import-logs" element={<Navigate to="/import-monitoring" replace />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
           <Route element={<ProtectedRoute roles={navigationAccess.users} />}>

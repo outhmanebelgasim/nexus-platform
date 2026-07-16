@@ -172,7 +172,7 @@ export function StationForm({ station, farms, isSaving, error, onCancel, onSubmi
           Cancel
         </Button>
         <Button type="submit" disabled={isSaving || farms.length === 0}>
-          {isSaving ? "Saving..." : station ? "Update station" : "Create station"}
+          {isSaving ? "Saving..." : station ? "Update station" : "Save station"}
         </Button>
       </div>
     </form>
