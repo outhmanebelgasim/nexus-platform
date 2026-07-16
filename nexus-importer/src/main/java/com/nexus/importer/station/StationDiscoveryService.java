@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Optional;
 
+import jakarta.persistence.EntityManager;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -27,21 +29,25 @@ public class StationDiscoveryService {
 
 	private final ImporterFarmRepository farmRepository;
 	private final ImporterStationRepository stationRepository;
+	private final EntityManager entityManager;
 	private final Clock clock;
 
 	@Autowired
 	public StationDiscoveryService(
 			ImporterFarmRepository farmRepository,
-			ImporterStationRepository stationRepository) {
-		this(farmRepository, stationRepository, Clock.systemUTC());
+			ImporterStationRepository stationRepository,
+			EntityManager entityManager) {
+		this(farmRepository, stationRepository, entityManager, Clock.systemUTC());
 	}
 
 	StationDiscoveryService(
 			ImporterFarmRepository farmRepository,
 			ImporterStationRepository stationRepository,
+			EntityManager entityManager,
 			Clock clock) {
 		this.farmRepository = farmRepository;
 		this.stationRepository = stationRepository;
+		this.entityManager = entityManager;
 		this.clock = clock;
 	}
 
@@ -62,6 +68,7 @@ public class StationDiscoveryService {
 			return new ResolvedStation(stationRepository.saveAndFlush(station), true);
 		}
 		catch (DataIntegrityViolationException ex) {
+			clearPersistenceContext();
 			Station station = stationRepository.findByCodeIgnoreCase(normalizedCode).orElseThrow(() -> ex);
 			updateImporterSeenMetadata(station, descriptor);
 			return new ResolvedStation(station, false);
@@ -85,6 +92,7 @@ public class StationDiscoveryService {
 			return farmRepository.saveAndFlush(farm);
 		}
 		catch (DataIntegrityViolationException ex) {
+			clearPersistenceContext();
 			return farmRepository.findBySystemKey(UNASSIGNED_FARM_SYSTEM_KEY).orElseThrow(() -> ex);
 		}
 	}
@@ -113,6 +121,12 @@ public class StationDiscoveryService {
 		station.setLastSeenAt(clock.instant());
 		if (station.isDiscoveredByImporter() && station.getSourceFilename() == null) {
 			station.setSourceFilename(descriptor.originalFilename());
+		}
+	}
+
+	private void clearPersistenceContext() {
+		if (entityManager != null) {
+			entityManager.clear();
 		}
 	}
 

@@ -11,6 +11,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
@@ -127,20 +128,27 @@ class DatFileScannerTest {
 	}
 
 	@Test
-	void extractsStationCodesCaseInsensitivelyAndNormalizesToLowercase() throws IOException {
-		oldFile("et0_YAZID.dat");
-		oldFile("mto_LOUNASDA.DAT");
-		oldFile("fos_LAHNA_HUMIDITE_SOL_ALL.dat");
-		oldFile("MTO_Beni-Mellal.dat");
-		oldFile("ET0_Sidi Ifni.dat");
+	void extractsStationCodeFromFirstTwoSegmentsAndIgnoresRemainingContent() throws IOException {
+		oldFile("MTO_yazid_30min.dat");
+		oldFile("ET0_yazid_daily.dat");
+		oldFile("FOS_lahna_humidite_sol_All.dat");
+		oldFile("ABC_newstation_sensor_data.dat");
+		oldFile("MTO_yazid.dat");
 
 		List<DatFileDescriptor> discoveredFiles = scanner(tempDir).scan();
 
+		assertThat(discoveredFiles).extracting(DatFileDescriptor::originalFilename)
+				.containsExactly(
+						"ABC_newstation_sensor_data.dat",
+						"ET0_yazid_daily.dat",
+						"FOS_lahna_humidite_sol_All.dat",
+						"MTO_yazid.dat",
+						"MTO_yazid_30min.dat");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::stationCode)
-				.containsExactly("et0_sidi_ifni", "et0_yazid", "fos_lahna", "mto_beni_mellal", "mto_lounasda");
+				.containsExactly("abc_newstation", "et0_yazid", "fos_lahna", "mto_yazid", "mto_yazid");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::fileType)
 				.containsExactly(
-						DatFileType.ET0_DAILY,
+						DatFileType.THIRTY_MINUTE,
 						DatFileType.ET0_DAILY,
 						DatFileType.THIRTY_MINUTE,
 						DatFileType.THIRTY_MINUTE,
@@ -148,10 +156,32 @@ class DatFileScannerTest {
 	}
 
 	@Test
+	void extractsStationCodesCaseInsensitivelyAndNormalizesToLowercase() throws IOException {
+		oldFile("et0_YAZID_daily.DAT");
+		oldFile("mto_LOUNASDA_30MIN.DAT");
+		oldFile("fos_LAHNA_HUMIDITE_SOL_ALL.dat");
+		oldFile("ABC_NewStation_sensor_data.dat");
+
+		List<DatFileDescriptor> discoveredFiles = scanner(tempDir).scan();
+
+		assertThat(discoveredFiles).extracting(DatFileDescriptor::stationCode)
+				.containsExactly("abc_newstation", "et0_yazid", "fos_lahna", "mto_lounasda");
+		assertThat(discoveredFiles).extracting(DatFileDescriptor::fileType)
+				.containsExactly(
+						DatFileType.THIRTY_MINUTE,
+						DatFileType.ET0_DAILY,
+						DatFileType.THIRTY_MINUTE,
+						DatFileType.THIRTY_MINUTE);
+	}
+
+	@Test
 	void skipsMalformedDatFilenames() throws IOException {
 		oldFile("station.dat");
-		oldFile("FOS_Lahna.dat");
+		oldFile("MTO.dat");
 		oldFile("ET0_.dat");
+		oldFile("ABCD_site.dat");
+		oldFile("A1C_site.dat");
+		oldFile("_site.dat");
 		Path supportedFile = oldFile("MTO_Yazid.dat");
 
 		List<DatFileDescriptor> discoveredFiles = scanner(tempDir).scan();
@@ -197,9 +227,11 @@ class DatFileScannerTest {
 		return new DatFileScanner(new NexusImporterProperties(
 				inputDirectory,
 				true,
-				Duration.ofMinutes(30),
-				Duration.ofSeconds(10),
-				Duration.ofMinutes(2)), new DatFileMetadataParser(), CLOCK);
+					Duration.ofMinutes(30),
+					Duration.ofSeconds(10),
+					Duration.ofMinutes(2),
+					ZoneId.of("Africa/Casablanca"),
+					500), new DatFileMetadataParser(), CLOCK);
 	}
 
 	private Path oldFile(String fileName) throws IOException {

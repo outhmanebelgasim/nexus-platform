@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
 @ConfigurationPropertiesScan
-@EntityScan(basePackages = "com.nexus.domain.entity")
+@EntityScan(basePackages = {"com.nexus.domain.entity", "com.nexus.importer.state"})
 @EnableJpaRepositories(basePackages = "com.nexus.importer.repository")
 @SpringBootApplication
 public class NexusImporterApplication {

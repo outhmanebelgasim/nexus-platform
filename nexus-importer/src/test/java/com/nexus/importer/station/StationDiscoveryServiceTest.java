@@ -30,7 +30,7 @@ class StationDiscoveryServiceTest {
 
 	private final ImporterFarmRepository farmRepository = org.mockito.Mockito.mock(ImporterFarmRepository.class);
 	private final ImporterStationRepository stationRepository = org.mockito.Mockito.mock(ImporterStationRepository.class);
-	private final StationDiscoveryService service = new StationDiscoveryService(farmRepository, stationRepository, CLOCK);
+	private final StationDiscoveryService service = new StationDiscoveryService(farmRepository, stationRepository, null, CLOCK);
 
 	@Test
 	void createsPlaceholderFarmOnce() {
@@ -138,6 +138,41 @@ class StationDiscoveryServiceTest {
 
 		assertThat(resolvedStation.created()).isFalse();
 		verify(stationRepository, never()).saveAndFlush(any(Station.class));
+	}
+
+	@Test
+	void sameStationCodeWithDifferentFilenameSuffixesReusesOneStation() {
+		Farm placeholderFarm = placeholderFarm();
+		Station savedStation = Station.builder()
+				.id(40L)
+				.farm(placeholderFarm)
+				.name("MTO Yazid")
+				.code("mto_yazid")
+				.status(StationStatus.INACTIVE)
+				.discoveredByImporter(true)
+				.sourceFilename("MTO_yazid_a.dat")
+				.build();
+		when(stationRepository.findByCodeIgnoreCase("mto_yazid"))
+				.thenReturn(Optional.empty(), Optional.of(savedStation));
+		when(farmRepository.findBySystemKey(StationDiscoveryService.UNASSIGNED_FARM_SYSTEM_KEY))
+				.thenReturn(Optional.of(placeholderFarm));
+		when(farmRepository.findBySystemKeyForUpdate(StationDiscoveryService.UNASSIGNED_FARM_SYSTEM_KEY))
+				.thenReturn(Optional.of(placeholderFarm));
+		when(stationRepository.saveAndFlush(any(Station.class))).thenReturn(savedStation);
+
+		ResolvedStation firstResolution = service.resolve(descriptor(
+				"MTO_yazid_a.dat",
+				"mto_yazid",
+				DatFileType.THIRTY_MINUTE));
+		ResolvedStation secondResolution = service.resolve(descriptor(
+				"MTO_yazid_b.dat",
+				"mto_yazid",
+				DatFileType.THIRTY_MINUTE));
+
+		assertThat(firstResolution.created()).isTrue();
+		assertThat(secondResolution.created()).isFalse();
+		assertThat(secondResolution.station()).isSameAs(savedStation);
+		verify(stationRepository).saveAndFlush(any(Station.class));
 	}
 
 	@Test
