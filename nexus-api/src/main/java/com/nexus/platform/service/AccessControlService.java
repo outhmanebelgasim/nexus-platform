@@ -76,13 +76,7 @@ public class AccessControlService {
             return stationRepository.findAll().stream().map(Station::getId).collect(Collectors.toUnmodifiableSet());
         }
 
-        Set<Long> stationIds = user.getStations().stream().map(Station::getId).collect(Collectors.toSet());
-        user.getFarms().stream()
-                .map(Farm::getId)
-                .forEach(farmId -> stationRepository.findByFarmId(farmId).stream()
-                        .map(Station::getId)
-                        .forEach(stationIds::add));
-        return Set.copyOf(stationIds);
+        return user.getStations().stream().map(Station::getId).collect(Collectors.toUnmodifiableSet());
     }
 
     public Set<MeasurementType> accessibleMeasurementTypes(AppUser user) {
@@ -218,14 +212,11 @@ public class AccessControlService {
             List<MeasurementVariable> variables
     ) {
         Set<Long> scopedStationIds = requestedStationIds.stream().collect(Collectors.toSet());
-        requestedFarmIds.forEach(farmId -> stationRepository.findByFarmId(farmId).stream()
-                .map(Station::getId)
-                .forEach(scopedStationIds::add));
 
         boolean outsideScope = variables.stream()
                 .anyMatch(variable -> variable.getStation() == null || !scopedStationIds.contains(variable.getStation().getId()));
         if (outsideScope) {
-            throw new AccessDeniedException("Measurement variable access must belong to the selected station or farm scope");
+            throw new AccessDeniedException("Measurement variable access must belong to the selected station scope");
         }
     }
 

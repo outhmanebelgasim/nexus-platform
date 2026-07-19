@@ -1,6 +1,7 @@
 package com.nexus.platform.service;
 
 import com.nexus.domain.entity.AppUser;
+import com.nexus.domain.entity.Farm;
 import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.domain.entity.Station;
 import com.nexus.domain.enums.MeasurementType;
@@ -15,25 +16,130 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 
 class AccessControlServiceTest {
 
+    private FarmRepository farmRepository;
+    private StationRepository stationRepository;
+    private MeasurementVariableRepository measurementVariableRepository;
     private AccessControlService accessControlService;
 
     @BeforeEach
     void setUp() {
+        farmRepository = mock(FarmRepository.class);
+        stationRepository = mock(StationRepository.class);
+        measurementVariableRepository = mock(MeasurementVariableRepository.class);
         accessControlService = new AccessControlService(
                 mock(UserRepository.class),
-                mock(FarmRepository.class),
-                mock(StationRepository.class),
-                mock(MeasurementVariableRepository.class)
+                farmRepository,
+                stationRepository,
+                measurementVariableRepository
         );
+    }
+
+    @Test
+    void viewerWithFarmAndOneExplicitStationCanOnlyAccessThatStation() {
+        Farm yazid = farm(1L);
+        Station etoYazid = station(10L, yazid);
+        Station fosYazid = station(11L, yazid);
+        Station mtoYazid = station(12L, yazid);
+        AppUser viewer = user(Role.VIEWER);
+        viewer.getFarms().add(yazid);
+        viewer.getStations().add(mtoYazid);
+
+        assertThat(accessControlService.accessibleStationIds(viewer)).containsExactly(12L);
+        assertThatCode(() -> accessControlService.ensureStationAccess(viewer, mtoYazid.getId()))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> accessControlService.ensureStationAccess(viewer, etoYazid.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> accessControlService.ensureStationAccess(viewer, fosYazid.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void viewerWithTwoExplicitStationsCanAccessExactlyThoseStations() {
+        Farm yazid = farm(1L);
+        Station fosYazid = station(11L, yazid);
+        Station mtoYazid = station(12L, yazid);
+        AppUser viewer = user(Role.VIEWER);
+        viewer.getFarms().add(yazid);
+        viewer.getStations().add(fosYazid);
+        viewer.getStations().add(mtoYazid);
+
+        assertThat(accessControlService.accessibleStationIds(viewer)).containsExactlyInAnyOrder(11L, 12L);
+    }
+
+    @Test
+    void viewerWithFarmOnlyHasNoStationAccess() {
+        AppUser viewer = user(Role.VIEWER);
+        viewer.getFarms().add(farm(1L));
+
+        assertThat(accessControlService.accessibleStationIds(viewer)).isEmpty();
+    }
+
+    @Test
+    void superAdminStillHasAllStationAccess() {
+        Station etoYazid = station(10L);
+        Station fosYazid = station(11L);
+        Station mtoYazid = station(12L);
+        AppUser superAdmin = user(Role.SUPER_ADMIN);
+        when(stationRepository.findAll()).thenReturn(List.of(etoYazid, fosYazid, mtoYazid));
+
+        assertThat(accessControlService.accessibleStationIds(superAdmin)).containsExactlyInAnyOrder(10L, 11L, 12L);
+    }
+
+    @Test
+    void measurementVariableAssignmentMustBelongToSelectedStationScope() {
+        Farm yazid = farm(1L);
+        Station unselectedStation = station(10L, yazid);
+        MeasurementVariable variable = variable(100L, unselectedStation, "TA", MeasurementType.AIR_TEMPERATURE);
+        AppUser target = user(Role.VIEWER);
+
+        when(farmRepository.findAllById(Set.of(yazid.getId()))).thenReturn(List.of(yazid));
+        when(stationRepository.findAllById(Set.of())).thenReturn(List.of());
+        when(measurementVariableRepository.findByIdIn(Set.of(variable.getId()))).thenReturn(List.of(variable));
+
+        assertThatThrownBy(() -> accessControlService.assignAccess(
+                null,
+                target,
+                Set.of(yazid.getId()),
+                Set.of(),
+                Set.of(variable.getId()),
+                Set.of(MeasurementType.AIR_TEMPERATURE)
+        )).isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void assignAccessReplacesDeselectedStations() {
+        Farm yazid = farm(1L);
+        Station removedStation = station(10L, yazid);
+        Station remainingStation = station(11L, yazid);
+        AppUser target = user(Role.VIEWER);
+        target.getStations().add(removedStation);
+        target.getStations().add(remainingStation);
+
+        when(farmRepository.findAllById(Set.of(yazid.getId()))).thenReturn(List.of(yazid));
+        when(stationRepository.findAllById(Set.of(remainingStation.getId()))).thenReturn(List.of(remainingStation));
+        when(measurementVariableRepository.findByIdIn(Set.of())).thenReturn(List.of());
+
+        accessControlService.assignAccess(
+                null,
+                target,
+                Set.of(yazid.getId()),
+                Set.of(remainingStation.getId()),
+                Set.of(),
+                Set.of()
+        );
+
+        assertThat(target.getStations()).extracting(Station::getId).containsExactly(remainingStation.getId());
     }
 
     @Test
@@ -120,9 +226,22 @@ class AccessControlServiceTest {
                 .build();
     }
 
+    private static Farm farm(Long id) {
+        return Farm.builder()
+                .id(id)
+                .name("Farm " + id)
+                .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .build();
+    }
+
     private static Station station(Long id) {
+        return station(id, null);
+    }
+
+    private static Station station(Long id, Farm farm) {
         return Station.builder()
                 .id(id)
+                .farm(farm)
                 .name("Station " + id)
                 .code("ST-" + id)
                 .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
