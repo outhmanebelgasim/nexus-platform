@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">NEXUS database entity relationship diagram</title>
+  <desc id="desc">ER diagram for farms, stations, measurement variables, measurements, alerts, users, access tables, import logs, and import file states.</desc>
+  <style>
+    .box { fill: #ffffff; stroke: #1f2937; stroke-width: 1.5; rx: 6; }
+    .head { fill: #e5f0ff; stroke: #1f2937; stroke-width: 1.5; }
+    .text { font-family: Arial, sans-serif; font-size: 13px; fill: #111827; }
+    .title { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; fill: #111827; }
+    .line { stroke: #374151; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#374151" />
+    </marker>
+  </defs>
+
+  <rect class="box" x="40" y="50" width="210" height="90" />
+  <rect class="head" x="40" y="50" width="210" height="28" />
+  <text class="title" x="55" y="69">farms</text>
+  <text class="text" x="55" y="98">PK id</text>
+  <text class="text" x="55" y="118">system_key unique</text>
+
+  <rect class="box" x="330" y="50" width="230" height="110" />
+  <rect class="head" x="330" y="50" width="230" height="28" />
+  <text class="title" x="345" y="69">stations</text>
+  <text class="text" x="345" y="98">PK id</text>
+  <text class="text" x="345" y="118">FK farm_id</text>
+  <text class="text" x="345" y="138">code unique</text>
+
+  <rect class="box" x="650" y="50" width="270" height="130" />
+  <rect class="head" x="650" y="50" width="270" height="28" />
+  <text class="title" x="665" y="69">measurement_variables</text>
+  <text class="text" x="665" y="98">PK id</text>
+  <text class="text" x="665" y="118">FK station_id</text>
+  <text class="text" x="665" y="138">unique station_id + code</text>
+  <text class="text" x="665" y="158">measurement_type, active</text>
+
+  <rect class="box" x="990" y="40" width="180" height="120" />
+  <rect class="head" x="990" y="40" width="180" height="28" />
+  <text class="title" x="1005" y="59">measurements</text>
+  <text class="text" x="1005" y="88">PK measured_at</text>
+  <text class="text" x="1005" y="108">PK/FK variable_id</text>
+  <text class="text" x="1005" y="128">Timescale hypertable</text>
+
+  <rect class="box" x="990" y="210" width="180" height="100" />
+  <rect class="head" x="990" y="210" width="180" height="28" />
+  <text class="title" x="1005" y="229">alerts</text>
+  <text class="text" x="1005" y="258">PK id</text>
+  <text class="text" x="1005" y="278">FK variable_id</text>
+
+  <rect class="box" x="40" y="330" width="230" height="120" />
+  <rect class="head" x="40" y="330" width="230" height="28" />
+  <text class="title" x="55" y="349">users</text>
+  <text class="text" x="55" y="378">PK id</text>
+  <text class="text" x="55" y="398">email unique</text>
+  <text class="text" x="55" y="418">role, status</text>
+
+  <rect class="box" x="360" y="300" width="230" height="80" />
+  <rect class="head" x="360" y="300" width="230" height="28" />
+  <text class="title" x="375" y="319">user_farm_access</text>
+  <text class="text" x="375" y="348">PK user_id + farm_id</text>
+
+  <rect class="box" x="360" y="410" width="230" height="80" />
+  <rect class="head" x="360" y="410" width="230" height="28" />
+  <text class="title" x="375" y="429">user_station_access</text>
+  <text class="text" x="375" y="458">PK user_id + station_id</text>
+
+  <rect class="box" x="650" y="300" width="280" height="80" />
+  <rect class="head" x="650" y="300" width="280" height="28" />
+  <text class="title" x="665" y="319">user_measurement_variable_access</text>
+  <text class="text" x="665" y="348">PK user_id + variable_id</text>
+
+  <rect class="box" x="650" y="410" width="280" height="80" />
+  <rect class="head" x="650" y="410" width="280" height="28" />
+  <text class="title" x="665" y="429">user_measurement_type_access</text>
+  <text class="text" x="665" y="458">PK user_id + measurement_type</text>
+
+  <rect class="box" x="40" y="600" width="250" height="95" />
+  <rect class="head" x="40" y="600" width="250" height="28" />
+  <text class="title" x="55" y="619">import_logs</text>
+  <text class="text" x="55" y="648">PK id</text>
+  <text class="text" x="55" y="668">batch_id unique</text>
+
+  <rect class="box" x="390" y="590" width="270" height="115" />
+  <rect class="head" x="390" y="590" width="270" height="28" />
+  <text class="title" x="405" y="609">import_file_states</text>
+  <text class="text" x="405" y="638">PK id</text>
+  <text class="text" x="405" y="658">file_key unique</text>
+  <text class="text" x="405" y="678">last processed checkpoint</text>
+
+  <path class="line" d="M250 95 L330 95" />
+  <path class="line" d="M560 105 L650 105" />
+  <path class="line" d="M920 105 L990 100" />
+  <path class="line" d="M920 160 L990 250" />
+  <path class="line" d="M270 370 L360 340" />
+  <path class="line" d="M270 400 L360 450" />
+  <path class="line" d="M270 390 L650 340" />
+  <path class="line" d="M270 420 L650 450" />
+  <path class="line" d="M590 340 L650 115" />
+  <path class="line" d="M590 450 L650 115" />
+</svg>

@@ -1,0 +1,163 @@
+Table farms {
+  id bigint [pk, increment]
+  name varchar(150) [not null]
+  location varchar(255)
+  description text
+  google_maps_url text
+  system_key varchar(100) [unique]
+  created_at timestamptz [not null]
+  updated_at timestamptz
+}
+
+Table stations {
+  id bigint [pk, increment]
+  farm_id bigint [not null]
+  name varchar(150) [not null]
+  code varchar(100) [not null, unique]
+  latitude double
+  longitude double
+  altitude double
+  status varchar(30) [not null]
+  discovered_by_importer boolean [not null]
+  source_filename varchar(255)
+  last_seen_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz
+}
+
+Table measurement_variables {
+  id bigint [pk, increment]
+  station_id bigint [not null]
+  code varchar(150) [not null]
+  display_name varchar(150)
+  description text
+  unit varchar(30)
+  data_type varchar(30) [not null]
+  measurement_type varchar(80)
+  active boolean [not null]
+  first_seen_at timestamptz
+  last_seen_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz
+
+  indexes {
+    (station_id, code) [unique, name: "uk_measurement_variable_station_code"]
+    station_id [name: "idx_measurement_variable_station"]
+  }
+}
+
+Table measurements {
+  measured_at timestamptz [not null]
+  variable_id bigint [not null]
+  numeric_value double
+  text_value text
+  quality varchar(30) [not null]
+  import_batch_id uuid
+  created_at timestamptz [not null]
+
+  indexes {
+    (measured_at, variable_id) [pk]
+    (variable_id, measured_at) [name: "idx_measurement_variable_measured_at"]
+  }
+}
+
+Table alerts {
+  id bigint [pk, increment]
+  variable_id bigint [not null]
+  alert_type varchar(80) [not null]
+  severity varchar(30) [not null]
+  message text [not null]
+  status varchar(30) [not null]
+  triggered_at timestamptz [not null]
+  resolved_at timestamptz
+}
+
+Table import_logs {
+  id bigint [pk, increment]
+  batch_id uuid [not null, unique]
+  file_name varchar(255) [not null]
+  file_path text
+  status varchar(30) [not null]
+  total_rows integer
+  imported_rows integer
+  skipped_rows integer
+  error_message text
+  started_at timestamptz [not null]
+  finished_at timestamptz
+}
+
+Table import_file_states {
+  id bigint [pk, increment]
+  file_key varchar(500) [not null, unique]
+  file_name varchar(255) [not null]
+  last_modified_at timestamptz [not null]
+  file_size_bytes bigint [not null]
+  header_signature varchar(255) [not null]
+  last_processed_physical_line bigint
+  last_processed_timestamp timestamptz
+  last_successful_batch_id uuid
+  updated_at timestamptz [not null]
+}
+
+Table users {
+  id bigint [pk, increment]
+  full_name varchar(150) [not null]
+  email varchar(180) [not null, unique]
+  password_hash varchar(255) [not null]
+  created_by_id bigint
+  role varchar(50) [not null]
+  status varchar(30) [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz
+}
+
+Table user_farm_access {
+  user_id bigint [not null]
+  farm_id bigint [not null]
+
+  indexes {
+    (user_id, farm_id) [pk]
+    farm_id [name: "idx_user_farm_access_farm"]
+  }
+}
+
+Table user_station_access {
+  user_id bigint [not null]
+  station_id bigint [not null]
+
+  indexes {
+    (user_id, station_id) [pk]
+    station_id [name: "idx_user_station_access_station"]
+  }
+}
+
+Table user_measurement_type_access {
+  user_id bigint [not null]
+  measurement_type varchar(80) [not null]
+
+  indexes {
+    (user_id, measurement_type) [pk]
+  }
+}
+
+Table user_measurement_variable_access {
+  user_id bigint [not null]
+  variable_id bigint [not null]
+
+  indexes {
+    (user_id, variable_id) [pk]
+    variable_id [name: "idx_user_measurement_variable_access_variable"]
+  }
+}
+
+Ref: stations.farm_id > farms.id [delete: cascade]
+Ref: measurement_variables.station_id > stations.id [delete: cascade]
+Ref: measurements.variable_id > measurement_variables.id [delete: cascade]
+Ref: alerts.variable_id > measurement_variables.id [delete: cascade]
+Ref: user_farm_access.user_id > users.id [delete: cascade]
+Ref: user_farm_access.farm_id > farms.id [delete: cascade]
+Ref: user_station_access.user_id > users.id [delete: cascade]
+Ref: user_station_access.station_id > stations.id [delete: cascade]
+Ref: user_measurement_type_access.user_id > users.id [delete: cascade]
+Ref: user_measurement_variable_access.user_id > users.id [delete: cascade]
+Ref: user_measurement_variable_access.variable_id > measurement_variables.id [delete: cascade]

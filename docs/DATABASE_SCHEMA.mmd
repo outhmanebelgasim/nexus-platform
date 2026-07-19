@@ -1,0 +1,135 @@
+erDiagram
+    FARMS ||--o{ STATIONS : contains
+    STATIONS ||--o{ MEASUREMENT_VARIABLES : exposes
+    MEASUREMENT_VARIABLES ||--o{ MEASUREMENTS : records
+    MEASUREMENT_VARIABLES ||--o{ ALERTS : triggers
+    USERS ||--o{ USER_FARM_ACCESS : has
+    FARMS ||--o{ USER_FARM_ACCESS : scoped_to
+    USERS ||--o{ USER_STATION_ACCESS : has
+    STATIONS ||--o{ USER_STATION_ACCESS : scoped_to
+    USERS ||--o{ USER_MEASUREMENT_TYPE_ACCESS : has
+    USERS ||--o{ USER_MEASUREMENT_VARIABLE_ACCESS : has
+    MEASUREMENT_VARIABLES ||--o{ USER_MEASUREMENT_VARIABLE_ACCESS : scoped_to
+
+    FARMS {
+        bigint id PK
+        varchar name
+        varchar location
+        text description
+        text google_maps_url
+        varchar system_key UK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    STATIONS {
+        bigint id PK
+        bigint farm_id FK
+        varchar name
+        varchar code UK
+        double latitude
+        double longitude
+        double altitude
+        varchar status
+        boolean discovered_by_importer
+        varchar source_filename
+        timestamptz last_seen_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    MEASUREMENT_VARIABLES {
+        bigint id PK
+        bigint station_id FK
+        varchar code
+        varchar display_name
+        text description
+        varchar unit
+        varchar data_type
+        varchar measurement_type
+        boolean active
+        timestamptz first_seen_at
+        timestamptz last_seen_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    MEASUREMENTS {
+        timestamptz measured_at PK
+        bigint variable_id PK, FK
+        double numeric_value
+        text text_value
+        varchar quality
+        uuid import_batch_id
+        timestamptz created_at
+    }
+
+    ALERTS {
+        bigint id PK
+        bigint variable_id FK
+        varchar alert_type
+        varchar severity
+        text message
+        varchar status
+        timestamptz triggered_at
+        timestamptz resolved_at
+    }
+
+    IMPORT_LOGS {
+        bigint id PK
+        uuid batch_id UK
+        varchar file_name
+        text file_path
+        varchar status
+        integer total_rows
+        integer imported_rows
+        integer skipped_rows
+        text error_message
+        timestamptz started_at
+        timestamptz finished_at
+    }
+
+    IMPORT_FILE_STATES {
+        bigint id PK
+        varchar file_key UK
+        varchar file_name
+        timestamptz last_modified_at
+        bigint file_size_bytes
+        varchar header_signature
+        bigint last_processed_physical_line
+        timestamptz last_processed_timestamp
+        uuid last_successful_batch_id
+        timestamptz updated_at
+    }
+
+    USERS {
+        bigint id PK
+        varchar full_name
+        varchar email UK
+        varchar password_hash
+        bigint created_by_id
+        varchar role
+        varchar status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USER_FARM_ACCESS {
+        bigint user_id PK, FK
+        bigint farm_id PK, FK
+    }
+
+    USER_STATION_ACCESS {
+        bigint user_id PK, FK
+        bigint station_id PK, FK
+    }
+
+    USER_MEASUREMENT_TYPE_ACCESS {
+        bigint user_id PK, FK
+        varchar measurement_type PK
+    }
+
+    USER_MEASUREMENT_VARIABLE_ACCESS {
+        bigint user_id PK, FK
+        bigint variable_id PK, FK
+    }
