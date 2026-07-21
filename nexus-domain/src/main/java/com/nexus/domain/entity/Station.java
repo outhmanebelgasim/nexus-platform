@@ -1,6 +1,7 @@
 package com.nexus.domain.entity;
 
 import com.nexus.domain.enums.StationStatus;
+import com.nexus.domain.enums.StationCategory;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,6 +41,10 @@ public class Station {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private StationStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "station_category", length = 30)
+    private StationCategory stationCategory;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
