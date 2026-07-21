@@ -43,6 +43,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers("/api/auth/logout", "/api/auth/me").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/me/**").hasAnyRole("SUPER_ADMIN", "ADMIN", "TECHNICIAN", "VIEWER")
                         .requestMatchers("/api/users/me", "/api/users/me/password", "/api/users/me/permissions").authenticated()
                         .requestMatchers("/api/users/**").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/farms/**", "/api/stations/**")

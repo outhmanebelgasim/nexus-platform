@@ -36,12 +36,15 @@ public final class StationMapper {
         return new StationResponse(
                 station.getId(),
                 getFarmId(station),
+                getFarmName(station),
                 station.getName(),
                 station.getCode(),
                 station.getLatitude(),
                 station.getLongitude(),
                 station.getAltitude(),
                 station.getStatus(),
+                station.getStationCategory(),
+                station.getLastSeenAt(),
                 station.getCreatedAt(),
                 station.getUpdatedAt()
         );
@@ -69,5 +72,9 @@ public final class StationMapper {
 
     private static Long getFarmId(Station station) {
         return station.getFarm() != null ? station.getFarm().getId() : null;
+    }
+
+    private static String getFarmName(Station station) {
+        return station.getFarm() != null ? station.getFarm().getName() : null;
     }
 }

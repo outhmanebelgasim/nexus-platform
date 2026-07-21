@@ -79,5 +79,7 @@ public interface MeasurementVariableRepository extends JpaRepository<Measurement
 
     List<MeasurementVariable> findByStationIdAndIdIn(Long stationId, Collection<Long> ids);
 
+    List<MeasurementVariable> findByStationIdAndCodeIn(Long stationId, Collection<String> codes);
+
     List<MeasurementVariable> findByStationIdAndMeasurementTypeIn(Long stationId, Collection<MeasurementType> measurementTypes);
 }
