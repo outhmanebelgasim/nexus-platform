@@ -113,8 +113,8 @@ class DatFileScannerTest {
 				.containsExactly(
 						"et0_lounasda",
 						"et0_yazid",
-						"fos_lahna",
-						"fos_yazid",
+						"fos_lahna_humidite_sol_all",
+						"fos_yazid_humidite_sol_all",
 						"mto_lounasda",
 						"mto_yazid");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::fileType)
@@ -128,7 +128,7 @@ class DatFileScannerTest {
 	}
 
 	@Test
-	void extractsStationCodeFromFirstTwoSegmentsAndIgnoresRemainingContent() throws IOException {
+	void preservesCompleteBasenameAsStationCode() throws IOException {
 		oldFile("MTO_yazid_30min.dat");
 		oldFile("ET0_yazid_daily.dat");
 		oldFile("FOS_lahna_humidite_sol_All.dat");
@@ -145,7 +145,12 @@ class DatFileScannerTest {
 						"MTO_yazid.dat",
 						"MTO_yazid_30min.dat");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::stationCode)
-				.containsExactly("abc_newstation", "et0_yazid", "fos_lahna", "mto_yazid", "mto_yazid");
+				.containsExactly(
+						"abc_newstation_sensor_data",
+						"et0_yazid_daily",
+						"fos_lahna_humidite_sol_all",
+						"mto_yazid",
+						"mto_yazid_30min");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::fileType)
 				.containsExactly(
 						DatFileType.THIRTY_MINUTE,
@@ -165,7 +170,7 @@ class DatFileScannerTest {
 		List<DatFileDescriptor> discoveredFiles = scanner(tempDir).scan();
 
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::stationCode)
-				.containsExactly("abc_newstation", "et0_yazid", "fos_lahna", "mto_lounasda");
+				.containsExactly("abc_newstation_sensor_data", "et0_yazid_daily", "fos_lahna_humidite_sol_all", "mto_lounasda_30min");
 		assertThat(discoveredFiles).extracting(DatFileDescriptor::fileType)
 				.containsExactly(
 						DatFileType.THIRTY_MINUTE,

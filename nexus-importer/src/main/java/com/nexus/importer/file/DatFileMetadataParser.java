@@ -15,24 +15,23 @@ public class DatFileMetadataParser {
 			return Optional.empty();
 		}
 
-		String[] segments = removeDatExtension(originalFilename).split("_", -1);
+		String basename = removeDatExtension(originalFilename);
+		String[] segments = basename.split("_", -1);
 		if (segments.length < 2) {
 			return Optional.empty();
 		}
 
 		String prefix = segments[0].trim();
-		String stationName = segments[1].trim();
-		if (!isValidPrefix(prefix) || stationName.isBlank()) {
+		if (!isValidPrefix(prefix) || basename.isBlank() || basename.endsWith("_")) {
 			return Optional.empty();
 		}
 
 		String normalizedPrefix = prefix.toLowerCase(Locale.ROOT);
-		String normalizedStationName = stationName.toLowerCase(Locale.ROOT);
 		DatFileType fileType = "et0".equals(normalizedPrefix) ? DatFileType.ET0_DAILY : DatFileType.THIRTY_MINUTE;
 		return Optional.of(new DatFileDescriptor(
 				path,
 				originalFilename,
-				normalizedPrefix + "_" + normalizedStationName,
+				basename.toLowerCase(Locale.ROOT),
 				fileType));
 	}
 

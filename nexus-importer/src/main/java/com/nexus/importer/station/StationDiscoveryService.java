@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.nexus.domain.entity.Farm;
 import com.nexus.domain.entity.Station;
+import com.nexus.domain.enums.StationCategory;
 import com.nexus.domain.enums.StationStatus;
 import com.nexus.importer.file.DatFileDescriptor;
 import com.nexus.importer.repository.ImporterFarmRepository;
@@ -110,6 +111,7 @@ public class StationDiscoveryService {
 				.name(toReadableName(descriptor.stationCode()))
 				.code(descriptor.stationCode())
 				.status(StationStatus.INACTIVE)
+				.stationCategory(resolveCategory(descriptor.stationCode()).orElse(null))
 				.discoveredByImporter(true)
 				.sourceFilename(descriptor.originalFilename())
 				.lastSeenAt(now)
@@ -121,6 +123,9 @@ public class StationDiscoveryService {
 		station.setLastSeenAt(clock.instant());
 		if (station.isDiscoveredByImporter() && station.getSourceFilename() == null) {
 			station.setSourceFilename(descriptor.originalFilename());
+		}
+		if (station.getStationCategory() == null) {
+			resolveCategory(descriptor.stationCode()).ifPresent(station::setStationCategory);
 		}
 	}
 
@@ -144,6 +149,17 @@ public class StationDiscoveryService {
 		String site = parts[1].substring(0, 1).toUpperCase(Locale.ROOT)
 				+ parts[1].substring(1).toLowerCase(Locale.ROOT);
 		return prefix + " " + site;
+	}
+
+	private Optional<StationCategory> resolveCategory(String stationCode) {
+		String normalizedCode = stationCode.toLowerCase(Locale.ROOT);
+		if (normalizedCode.startsWith("mto_") || normalizedCode.startsWith("et0_")) {
+			return Optional.of(StationCategory.METEO);
+		}
+		if (normalizedCode.startsWith("fos_")) {
+			return Optional.of(StationCategory.FOS);
+		}
+		return Optional.empty();
 	}
 
 }
