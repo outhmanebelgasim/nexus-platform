@@ -4,7 +4,7 @@ import { ChartBuilder } from "@/components/measurement-chart/ChartBuilder";
 import { EmptyChartState } from "@/components/measurement-chart/EmptyChartState";
 import { LoadingChart } from "@/components/measurement-chart/LoadingChart";
 import { MeasurementChart } from "@/components/measurement-chart/MeasurementChart";
-import { buildSeries, getMeasurementTypeOptions, resolveTimeRange } from "@/components/measurement-chart/chartUtils";
+import { buildSeries, getMeasurementTypeOptions, getVariableLabel, resolveTimeRange, timeRangeOptions } from "@/components/measurement-chart/chartUtils";
 import { MeasurementTable } from "@/components/measurements/MeasurementTable";
 import { MetricCard } from "@/components/shared/MetricCard";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -12,6 +12,7 @@ import { PaginationControls } from "@/components/shared/PaginationControls";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFarms } from "@/hooks/useFarms";
+import { useAuth } from "@/hooks/useAuth";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { useMeasurementAnalytics } from "@/hooks/useMeasurementAnalytics";
 import { useMeasurementVariables } from "@/hooks/useMeasurementVariables";
@@ -51,6 +52,7 @@ function filterVariablesByScope(variables: MeasurementVariable[], stationById: M
 }
 
 export function MeasurementsPage() {
+  const { user } = useAuth();
   const [filters, setFilters] = useState<MeasurementAnalyticsFilters>(initialFilters);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
@@ -63,6 +65,8 @@ export function MeasurementsPage() {
       : { active: filters.includeInactiveVariables ? undefined : true },
   );
   const { measurements, isLoading, error, hasGenerated, generateChart } = useMeasurementAnalytics();
+  const isViewer = user?.role === "VIEWER";
+  const effectiveChartType = isViewer ? "line" : filters.chartType;
 
   useEffect(() => {
     let ignore = false;
@@ -131,6 +135,26 @@ export function MeasurementsPage() {
     () => buildSeries(filteredMeasurements, selectedVariables),
     [filteredMeasurements, selectedVariables],
   );
+  const selectedViewerVariable = selectedVariables.length === 1 ? selectedVariables[0] : null;
+  const selectedTimeRangeLabel = timeRangeOptions.find((option) => option.value === filters.timeRange)?.label ?? "Selected period";
+  const viewerChartTitle =
+    isViewer && selectedViewerVariable
+      ? `${getVariableLabel(selectedViewerVariable)}${selectedViewerVariable.unit ? ` (${selectedViewerVariable.unit})` : ""} - ${selectedTimeRangeLabel}`
+      : "Measurement history";
+  const viewerEmptyState = !filters.stationId
+    ? {
+        title: "Select a station",
+        description: "Select a station to view its measurements.",
+      }
+    : filters.variableIds.length === 0
+      ? {
+          title: "Select a measurement variable",
+          description: "Select a measurement variable to display its history.",
+        }
+      : {
+          title: "View measurement history",
+          description: "Select the filters above, then generate the chart to view measurements.",
+        };
   const measurementsPagination = useClientPagination(
     filteredMeasurements,
     25,
@@ -157,7 +181,12 @@ export function MeasurementsPage() {
     setValidationError(null);
 
     if (!filters.stationId) {
-      setValidationError("Select a station before generating a chart.");
+      setValidationError(isViewer ? "Select a station to view its measurements." : "Select a station before generating a chart.");
+      return;
+    }
+
+    if (isViewer && filters.variableIds.length === 0) {
+      setValidationError("Select a measurement variable to display its history.");
       return;
     }
 
@@ -169,7 +198,7 @@ export function MeasurementsPage() {
 
     const queryVariables = filterVariablesByScope(visibleVariables, stationById, filters);
     if (queryVariables.length === 0) {
-      setValidationError("No active variables match the selected station and measurement type filters.");
+      setValidationError(isViewer ? "Select a measurement variable to display its history." : "No active variables match the selected station and measurement type filters.");
       return;
     }
 
@@ -192,6 +221,7 @@ export function MeasurementsPage() {
     await generateChart(
       {
         ...filters,
+        chartType: effectiveChartType,
         start: range.start,
         end: range.end,
       },
@@ -204,7 +234,11 @@ export function MeasurementsPage() {
       <PageHeader
         eyebrow="Custom Measurements Analytics"
         title="Telemetry analytics workspace"
-        description="Build on-demand visualizations from historical measurements by selecting scope, series, time range and chart type."
+        description={
+          isViewer
+            ? "View historical measurements by selecting a station, measurement variable and time range."
+            : "Build on-demand visualizations from historical measurements by selecting scope, series, time range and chart type."
+        }
         icon={Gauge}
       >
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -227,12 +261,16 @@ export function MeasurementsPage() {
         error={validationError}
         onChange={updateFilters}
         onGenerate={handleGenerateChart}
+        hideVisualizationSelector={isViewer}
+        hideMeasurementTypeFilter={isViewer}
+        hideInactiveVariableToggle={isViewer}
+        singleVariableSelection={isViewer}
       />
 
       {isLoading ? (
-        <LoadingChart />
+        <LoadingChart label={isViewer ? "Loading measurements" : "Loading chart"} />
       ) : !hasGenerated ? (
-        <EmptyChartState />
+        <EmptyChartState title={isViewer ? viewerEmptyState.title : undefined} description={isViewer ? viewerEmptyState.description : undefined} />
       ) : error ? (
         <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
           <CardHeader>
@@ -246,19 +284,27 @@ export function MeasurementsPage() {
       ) : filteredMeasurements.length === 0 || visibleSeriesCount === 0 ? (
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>No data found</CardTitle>
+            <CardTitle>{isViewer ? "No measurements available" : "No data found"}</CardTitle>
             <CardDescription>
-              The API returned no measurements for the selected filters. Adjust the scope, time range or measurement types and generate again.
+              {isViewer
+                ? "No measurements are available for the selected period."
+                : "The API returned no measurements for the selected filters. Adjust the scope, time range or measurement types and generate again."}
             </CardDescription>
           </CardHeader>
         </Card>
       ) : (
         <>
           <MeasurementChart
-            chartType={filters.chartType}
+            chartType={effectiveChartType}
             measurements={filteredMeasurements}
             variables={selectedVariables}
             series={chartSeries}
+            title={isViewer ? viewerChartTitle : undefined}
+            description={
+              isViewer
+                ? `${filteredMeasurements.length.toLocaleString()} readings displayed as a line chart.`
+                : undefined
+            }
           />
 
           <Card className="shadow-sm">

@@ -2,8 +2,10 @@ import {
   Activity,
   Bell,
   ClipboardList,
+  CloudSun,
   Database,
   Gauge,
+  Layers,
   LogOut,
   Menu,
   Moon,
@@ -13,7 +15,7 @@ import {
   UserCircle,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -27,6 +29,8 @@ import {
   type ThemePreference,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { graphService } from "@/services/graphService";
+import type { StationCategory } from "@/types/graph";
 import type { Role } from "@/types/user";
 
 type NavigationItem = {
@@ -54,6 +58,8 @@ const navigationSections: NavigationSection[] = [
     title: "Monitoring",
     items: [
       { name: "Measurements", href: "/measurements", icon: Gauge, roles: navigationAccess.measurements },
+      { name: "Meteo Stations", href: "/meteo-stations", icon: CloudSun, roles: navigationAccess.restrictedStations },
+      { name: "FOS Stations", href: "/fos-stations", icon: Layers, roles: navigationAccess.restrictedStations },
       { name: "Alerts", href: "/alerts", icon: Bell, roles: navigationAccess.alerts },
       { name: "Import Monitoring", href: "/import-monitoring", icon: ClipboardList, roles: navigationAccess.importMonitoring },
     ],
@@ -68,12 +74,29 @@ export function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(() => getResolvedThemePreference());
+  const [stationCategories, setStationCategories] = useState<StationCategory[]>([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const restrictedRole = user?.role === "TECHNICIAN" || user?.role === "VIEWER";
+  const allowedCategorySet = useMemo(() => new Set(stationCategories), [stationCategories]);
   const visibleNavigationSections = navigationSections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => Boolean(user && item.roles.includes(user.role))),
+      items: section.items.filter((item) => {
+        if (!user || !item.roles.includes(user.role)) {
+          return false;
+        }
+        if (restrictedRole && item.href === "/measurements") {
+          return false;
+        }
+        if (item.href === "/meteo-stations") {
+          return allowedCategorySet.has("METEO");
+        }
+        if (item.href === "/fos-stations") {
+          return allowedCategorySet.has("FOS");
+        }
+        return true;
+      }),
     }))
     .filter((section) => section.items.length > 0);
 
@@ -86,6 +109,33 @@ export function DashboardLayout() {
   useEffect(() => {
     applyThemePreference(themePreference);
   }, [themePreference]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadRestrictedCategories() {
+      if (!restrictedRole) {
+        setStationCategories([]);
+        return;
+      }
+      try {
+        const categories = await graphService.currentCategories();
+        if (!ignore) {
+          setStationCategories(categories);
+        }
+      } catch {
+        if (!ignore) {
+          setStationCategories([]);
+        }
+      }
+    }
+
+    void loadRestrictedCategories();
+
+    return () => {
+      ignore = true;
+    };
+  }, [restrictedRole]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");

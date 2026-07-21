@@ -1,6 +1,10 @@
 import { Loader2 } from "lucide-react";
 
-export function LoadingChart() {
+interface LoadingChartProps {
+  label?: string;
+}
+
+export function LoadingChart({ label = "Loading chart" }: LoadingChartProps) {
   return (
     <div className="min-h-[420px] rounded-md border bg-background p-4">
       <div className="mb-5 flex items-center justify-between">
@@ -8,7 +12,7 @@ export function LoadingChart() {
           <div className="h-4 w-56 animate-pulse rounded bg-muted" />
           <div className="h-3 w-80 animate-pulse rounded bg-muted" />
         </div>
-        <Loader2 className="h-5 w-5 animate-spin text-primary" aria-label="Loading chart" />
+        <Loader2 className="h-5 w-5 animate-spin text-primary" aria-label={label} />
       </div>
       <div className="grid h-80 grid-cols-12 items-end gap-2">
         {Array.from({ length: 24 }).map((_, index) => (

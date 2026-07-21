@@ -108,7 +108,7 @@ export function buildSeries(measurements: Measurement[], variables: MeasurementV
 
 export function exportMeasurementsAsCsv(measurements: Measurement[], variables: MeasurementVariable[]) {
   const variableById = new Map(variables.map((variable) => [variable.id, variable]));
-  const header = ["measuredAt", "variableId", "variableCode", "measurementType", "numericValue", "textValue", "quality", "importBatchId"];
+  const header = ["measuredAt", "variableId", "variableCode", "measurementType", "numericValue", "textValue", "quality"];
   const rows = measurements.map((measurement) => {
     const variable = variableById.get(measurement.variableId);
     return [
@@ -119,7 +119,6 @@ export function exportMeasurementsAsCsv(measurements: Measurement[], variables: 
       measurement.numericValue === null ? "" : String(measurement.numericValue),
       measurement.textValue ?? "",
       measurement.quality,
-      measurement.importBatchId ?? "",
     ];
   });
 

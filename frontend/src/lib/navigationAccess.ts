@@ -10,6 +10,7 @@ export const navigationAccess = {
   stations: ALL_AUTHENTICATED_ROLES,
   variables: ALL_AUTHENTICATED_ROLES,
   measurements: ALL_AUTHENTICATED_ROLES,
+  restrictedStations: ["TECHNICIAN", "VIEWER"],
   alerts: ALL_AUTHENTICATED_ROLES,
   importMonitoring: ADMINISTRATION_ROLES,
   users: ADMINISTRATION_ROLES,

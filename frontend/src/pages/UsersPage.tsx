@@ -25,8 +25,11 @@ import { useStations } from "@/hooks/useStations";
 import { useToast } from "@/hooks/useToast";
 import { useUsers } from "@/hooks/useUsers";
 import { getApiErrorMessage } from "@/lib/api";
+import { filterStationsByCategory, filterVariablesForGraphStation } from "@/lib/restrictedStationDashboard";
+import { graphService } from "@/services/graphService";
 import { measurementVariableService } from "@/services/measurementVariableService";
 import { userService } from "@/services/userService";
+import type { StationCategory, UserGraphConfiguration, UserGraphPayload } from "@/types/graph";
 import type { MeasurementVariable } from "@/types/measurementVariable";
 import type { Role, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 import { formatDateTime } from "@/utils/format";
@@ -38,6 +41,7 @@ type UserFormValues = UserPayload & {
   chartVariableIds?: number[];
 };
 type UserFieldErrors = Partial<Record<keyof UserFormValues, string>>;
+type GraphFormValues = Omit<UserGraphPayload, "stationId" | "variables"> & { variableIds: number[] };
 
 const baseUserSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required.").max(150),
@@ -128,6 +132,20 @@ export function UsersPage() {
   const [farmSearch, setFarmSearch] = useState("");
   const [stationSearch, setStationSearch] = useState("");
   const [chartVariableSearch, setChartVariableSearch] = useState("");
+  const [assignedGraphs, setAssignedGraphs] = useState<UserGraphConfiguration[]>([]);
+  const [graphsLoading, setGraphsLoading] = useState(false);
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const [graphStationId, setGraphStationId] = useState<number | null>(null);
+  const [graphForm, setGraphForm] = useState<GraphFormValues>({
+    title: "",
+    description: "",
+    stationCategory: "METEO",
+    yAxisMin: 0,
+    yAxisMax: 100,
+    displayOrder: 1,
+    active: true,
+    variableIds: [],
+  });
   const [formValues, setFormValues] = useState<UserFormValues>({
     fullName: "",
     email: "",
@@ -278,6 +296,19 @@ export function UsersPage() {
   const selectedChartVariables = selectedChartVariableIds
     .map((variableId) => variableById.get(variableId))
     .filter((variable): variable is MeasurementVariable => Boolean(variable));
+  const graphStationOptions = useMemo(() => {
+    const selectedStations = availableStations.filter((station) => selectedStationSet.has(station.id));
+    return filterStationsByCategory(selectedStations, graphForm.stationCategory);
+  }, [availableStations, graphForm.stationCategory, selectedStationSet]);
+  const validGraphStationId = graphStationId && graphStationOptions.some((station) => station.id === graphStationId) ? graphStationId : null;
+  const graphVariableOptions = useMemo(() => {
+    return filterVariablesForGraphStation(availableChartVariables, stations, validGraphStationId, graphForm.stationCategory)
+      .sort((first, second) => variableLabel(first).localeCompare(variableLabel(second)));
+  }, [availableChartVariables, graphForm.stationCategory, stations, validGraphStationId]);
+  const validGraphVariableIds = useMemo(
+    () => graphForm.variableIds.filter((variableId) => graphVariableOptions.some((variable) => variable.id === variableId)),
+    [graphForm.variableIds, graphVariableOptions],
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -411,6 +442,9 @@ export function UsersPage() {
     setFarmSearch("");
     setStationSearch("");
     setChartVariableSearch("");
+    setAssignedGraphs([]);
+    setGraphError(null);
+    setGraphStationId(null);
     setFormValues({
       fullName: "",
       email: "",
@@ -438,6 +472,19 @@ export function UsersPage() {
     setFarmSearch("");
     setStationSearch("");
     setChartVariableSearch("");
+    setAssignedGraphs([]);
+    setGraphError(null);
+    setGraphStationId(null);
+    setGraphForm({
+      title: "",
+      description: "",
+      stationCategory: "METEO",
+      yAxisMin: 0,
+      yAxisMax: 100,
+      displayOrder: 1,
+      active: true,
+      variableIds: [],
+    });
     setFormValues({
       fullName: user.fullName,
       email: user.email,
@@ -452,6 +499,7 @@ export function UsersPage() {
       chartVariableIds: user.variableIds ?? [],
     });
     setFormMode("edit");
+    void loadAssignedGraphs(user.id);
   };
 
   const closeForm = () => {
@@ -459,6 +507,69 @@ export function UsersPage() {
     setSelectedUser(null);
     setFormError(null);
     setFieldErrors({});
+  };
+
+  const loadAssignedGraphs = async (userId: number) => {
+    setGraphsLoading(true);
+    setGraphError(null);
+    try {
+      const graphs = await graphService.findForUser(userId);
+      setAssignedGraphs(graphs);
+      setGraphForm((current) => ({ ...current, displayOrder: graphs.length + 1 }));
+    } catch (loadError) {
+      setGraphError(getApiErrorMessage(loadError));
+    } finally {
+      setGraphsLoading(false);
+    }
+  };
+
+  const saveGraph = async () => {
+    if (!selectedUser) {
+      return;
+    }
+    if (!graphForm.title.trim() || !validGraphStationId || validGraphVariableIds.length === 0 || Number(graphForm.yAxisMax) <= Number(graphForm.yAxisMin)) {
+      setGraphError("Graph title, variables and a valid Y-axis range are required.");
+      return;
+    }
+    const payload: UserGraphPayload = {
+      ...graphForm,
+      stationId: validGraphStationId,
+      title: graphForm.title.trim(),
+      description: graphForm.description?.trim() || null,
+      yAxisMin: Number(graphForm.yAxisMin),
+      yAxisMax: Number(graphForm.yAxisMax),
+      variables: validGraphVariableIds.map((variableId, index) => ({ variableId, displayOrder: index + 1 })),
+    };
+    setGraphsLoading(true);
+    setGraphError(null);
+    try {
+      await graphService.createForUser(selectedUser.id, payload);
+      await loadAssignedGraphs(selectedUser.id);
+      setGraphStationId(null);
+      setGraphForm((current) => ({ ...current, title: "", description: "", variableIds: [], displayOrder: assignedGraphs.length + 2 }));
+      showToast({ title: "Graph assigned", description: "The graph configuration was saved." });
+    } catch (saveError) {
+      setGraphError(getApiErrorMessage(saveError));
+    } finally {
+      setGraphsLoading(false);
+    }
+  };
+
+  const removeGraph = async (graphId: number) => {
+    if (!selectedUser) {
+      return;
+    }
+    setGraphsLoading(true);
+    setGraphError(null);
+    try {
+      await graphService.removeForUser(selectedUser.id, graphId);
+      await loadAssignedGraphs(selectedUser.id);
+      showToast({ title: "Graph removed", description: "The graph configuration was removed." });
+    } catch (removeError) {
+      setGraphError(getApiErrorMessage(removeError));
+    } finally {
+      setGraphsLoading(false);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -802,7 +913,7 @@ export function UsersPage() {
             </div>
           </FormSection>
 
-          <FormSection title="Data access scope" description="Choose the farms and stations this user can see across operational screens.">
+          <FormSection title="Data access scope" description="Choose farm context and the exact stations this user can access. Farm access does not grant all stations automatically.">
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-3 rounded-lg border bg-card p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -892,7 +1003,7 @@ export function UsersPage() {
                 <SearchInput placeholder="Search stations..." value={stationSearch} onChange={setStationSearch} />
                 <div className="flex flex-wrap gap-2">
                   {selectedStationNames.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">Stations are optional when farm access covers the scope.</span>
+                    <span className="text-xs text-muted-foreground">Select stations explicitly. Farm access alone does not grant station data.</span>
                   ) : (
                     selectedStationNames.map((name) => <Badge key={name}>{name}</Badge>)
                   )}
@@ -1026,6 +1137,140 @@ export function UsersPage() {
               )}
             </div>
           </FormSection>
+
+          {formMode === "edit" && selectedUser && (formValues.role === "TECHNICIAN" || formValues.role === "VIEWER") ? (
+            <FormSection title="Assigned graphs" description="Graph definitions are the effective visualization access for restricted users. Users see only these active graphs for explicitly assigned stations.">
+              {graphError ? <Alert>{graphError}</Alert> : null}
+              <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+                <div className="space-y-3 rounded-lg border bg-card p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="graphTitle">Graph title</Label>
+                      <Input id="graphTitle" value={graphForm.title} onChange={(event) => setGraphForm((current) => ({ ...current, title: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphCategory">Category</Label>
+                      <Select
+                        id="graphCategory"
+                        value={graphForm.stationCategory}
+                        onChange={(event) => {
+                          setGraphStationId(null);
+                          setGraphForm((current) => ({ ...current, stationCategory: event.target.value as StationCategory, variableIds: [] }));
+                        }}
+                      >
+                        <option value="METEO">METEO</option>
+                        <option value="FOS">FOS</option>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="graphStation">Station</Label>
+                      <Select
+                        id="graphStation"
+                        value={validGraphStationId ?? ""}
+                        onChange={(event) => {
+                          const nextStationId = event.target.value ? Number(event.target.value) : null;
+                          setGraphStationId(nextStationId);
+                          const nextVariables = filterVariablesForGraphStation(availableChartVariables, stations, nextStationId, graphForm.stationCategory);
+                          setGraphForm((current) => ({
+                            ...current,
+                            variableIds: current.variableIds.filter((variableId) => nextVariables.some((variable) => variable.id === variableId)),
+                          }));
+                        }}
+                      >
+                        <option value="">Select a station</option>
+                        {graphStationOptions.map((station) => (
+                          <option key={station.id} value={station.id}>
+                            {station.code} - {station.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Variables are loaded only from the selected station.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphOrder">Order</Label>
+                      <Input id="graphOrder" type="number" min="1" value={graphForm.displayOrder} onChange={(event) => setGraphForm((current) => ({ ...current, displayOrder: Number(event.target.value) }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphMin">Y minimum</Label>
+                      <Input id="graphMin" type="number" value={graphForm.yAxisMin} onChange={(event) => setGraphForm((current) => ({ ...current, yAxisMin: Number(event.target.value) }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphMax">Y maximum</Label>
+                      <Input id="graphMax" type="number" value={graphForm.yAxisMax} onChange={(event) => setGraphForm((current) => ({ ...current, yAxisMax: Number(event.target.value) }))} />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={graphForm.active} onChange={(event) => setGraphForm((current) => ({ ...current, active: event.target.checked }))} />
+                      Active
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Variables</Label>
+                    <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border bg-background p-2">
+                      {!validGraphStationId ? (
+                        <p className="p-2 text-sm text-muted-foreground">Select a station before choosing graph variables.</p>
+                      ) : graphVariableOptions.length === 0 ? (
+                        <p className="p-2 text-sm text-muted-foreground">No active variables are available for the selected station.</p>
+                      ) : (
+                        graphVariableOptions.map((variable) => (
+                          <label key={variable.code} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input accent-primary"
+                              checked={validGraphVariableIds.includes(variable.id)}
+                              onChange={() =>
+                                setGraphForm((current) => ({
+                                  ...current,
+                                  variableIds: validGraphVariableIds.includes(variable.id)
+                                    ? validGraphVariableIds.filter((variableId) => variableId !== variable.id)
+                                    : [...validGraphVariableIds, variable.id],
+                                }))
+                              }
+                            />
+                            <span>{variableLabel(variable)}{variable.unit ? ` (${variable.unit})` : ""}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <Button type="button" onClick={saveGraph} disabled={graphsLoading || graphVariableOptions.length === 0}>
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Add graph
+                  </Button>
+                </div>
+
+                <div className="space-y-3 rounded-lg border bg-card p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">{assignedGraphs.length} assigned graphs</p>
+                    {graphsLoading ? <span className="text-xs text-muted-foreground">Saving...</span> : null}
+                  </div>
+                  {assignedGraphs.length === 0 ? (
+                    <EmptyState title="No assigned graphs" description="Restricted users with no active graph configuration see no measurement graphs." />
+                  ) : (
+                    <div className="space-y-2">
+                      {assignedGraphs.map((graph) => (
+                        <div key={graph.id} className="flex items-start justify-between gap-3 rounded-md border bg-background p-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium">{graph.title}</p>
+                              <Badge>{graph.stationCategory}</Badge>
+                              <Badge>{graph.active ? "Active" : "Inactive"}</Badge>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Station: {graph.stationCode ?? "Unassigned"}{graph.stationName ? ` - ${graph.stationName}` : ""}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Y {graph.yAxisMin} to {graph.yAxisMax} - {graph.variables.map((variable) => variable.displayName || variable.variableCode).join(", ")}
+                            </p>
+                          </div>
+                          <ActionIconButton action="delete" label="Remove graph" onClick={() => removeGraph(graph.id)} disabled={graphsLoading} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </FormSection>
+          ) : null}
 
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={closeForm} disabled={isSaving}>

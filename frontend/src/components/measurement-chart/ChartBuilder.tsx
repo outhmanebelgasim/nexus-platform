@@ -18,6 +18,10 @@ interface ChartBuilderProps {
   measurementTypes: string[];
   isLoading: boolean;
   error?: string | null;
+  hideVisualizationSelector?: boolean;
+  hideMeasurementTypeFilter?: boolean;
+  hideInactiveVariableToggle?: boolean;
+  singleVariableSelection?: boolean;
   onChange: (updates: Partial<MeasurementAnalyticsFilters>) => void;
   onGenerate: () => void;
 }
@@ -36,6 +40,10 @@ export function ChartBuilder({
   measurementTypes,
   isLoading,
   error,
+  hideVisualizationSelector = false,
+  hideMeasurementTypeFilter = false,
+  hideInactiveVariableToggle = false,
+  singleVariableSelection = false,
   onChange,
   onGenerate,
 }: ChartBuilderProps) {
@@ -53,7 +61,9 @@ export function ChartBuilder({
             Chart builder
           </CardTitle>
           <CardDescription>
-            Select the field scope, telemetry series, time window and visualization type before generating data.
+            {hideVisualizationSelector
+              ? "Select the field scope, measurement variable and time window before viewing measurements."
+              : "Select the field scope, telemetry series, time window and visualization type before generating data."}
           </CardDescription>
         </div>
         <Button type="button" onClick={onGenerate} disabled={isLoading}>
@@ -123,10 +133,14 @@ export function ChartBuilder({
                 if (!variableId || filters.variableIds.includes(variableId)) {
                   return;
                 }
-                onChange({ variableIds: [...filters.variableIds, variableId] });
+                onChange({ variableIds: singleVariableSelection ? [variableId] : [...filters.variableIds, variableId] });
               }}
             >
-              <option value="">{filters.stationId ? "Add variable to query" : "Select a station first"}</option>
+              <option value="">
+                {filters.stationId
+                  ? singleVariableSelection ? "Select measurement variable" : "Add variable to query"
+                  : "Select a station first"}
+              </option>
               {filteredVariables.map((variable) => (
                 <option key={variable.id} value={variable.id}>
                   {variable.displayName || variable.code}
@@ -135,7 +149,11 @@ export function ChartBuilder({
             </Select>
             <div className="flex flex-wrap gap-2">
               {filters.variableIds.length === 0 ? (
-                <span className="text-xs text-muted-foreground">All active variables for the selected station will be queried.</span>
+                <span className="text-xs text-muted-foreground">
+                  {singleVariableSelection
+                    ? "Select a measurement variable to display its history."
+                    : "All active variables for the selected station will be queried."}
+                </span>
               ) : (
                 filters.variableIds.map((variableId) => {
                   const variable = variables.find((item) => item.id === variableId);
@@ -152,57 +170,63 @@ export function ChartBuilder({
                 })
               )}
             </div>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-border"
-                checked={Boolean(filters.includeInactiveVariables)}
-                onChange={(event) =>
-                  onChange({
-                    includeInactiveVariables: event.target.checked,
-                    variableIds: [],
-                    measurementTypes: [],
-                  })
-                }
-              />
-              Include inactive variables
-            </label>
+            {!hideInactiveVariableToggle ? (
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-border"
+                  checked={Boolean(filters.includeInactiveVariables)}
+                  onChange={(event) =>
+                    onChange({
+                      includeInactiveVariables: event.target.checked,
+                      variableIds: [],
+                      measurementTypes: [],
+                    })
+                  }
+                />
+                Include inactive variables
+              </label>
+            ) : null}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Measurement types</Label>
-          <MeasurementSelector
-            measurementTypes={measurementTypes}
-            selectedTypes={filters.measurementTypes}
-            onChange={(measurementTypesValue) => onChange({ measurementTypes: measurementTypesValue })}
-          />
-        </div>
+        {!hideMeasurementTypeFilter ? (
+          <div className="space-y-2">
+            <Label>Measurement types</Label>
+            <MeasurementSelector
+              measurementTypes={measurementTypes}
+              selectedTypes={filters.measurementTypes}
+              onChange={(measurementTypesValue) => onChange({ measurementTypes: measurementTypesValue })}
+            />
+          </div>
+        ) : null}
 
         <div className="space-y-2">
           <Label>Time range</Label>
           <TimeRangeSelector filters={filters} onChange={onChange} />
         </div>
 
-        <div className="space-y-2">
-          <Label>Visualization</Label>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {chartTypes.map((chartType) => {
-              const Icon = chartType.icon;
-              return (
-                <Button
-                  key={chartType.value}
-                  type="button"
-                  variant={filters.chartType === chartType.value ? "default" : "outline"}
-                  onClick={() => onChange({ chartType: chartType.value })}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  {chartType.label}
-                </Button>
-              );
-            })}
+        {!hideVisualizationSelector ? (
+          <div className="space-y-2">
+            <Label>Visualization</Label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {chartTypes.map((chartType) => {
+                const Icon = chartType.icon;
+                return (
+                  <Button
+                    key={chartType.value}
+                    type="button"
+                    variant={filters.chartType === chartType.value ? "default" : "outline"}
+                    onClick={() => onChange({ chartType: chartType.value })}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    {chartType.label}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : null}
       </CardContent>
     </Card>
   );

@@ -11,6 +11,7 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { StationsPage } from "@/pages/StationsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterPage } from "@/pages/RegisterPage";
+import { RestrictedStationsPage } from "@/pages/RestrictedStationsPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { VariablesPage } from "@/pages/VariablesPage";
 
@@ -30,6 +31,12 @@ export default function App() {
           <Route path="/variables" element={<VariablesPage />} />
           <Route path="/sensors" element={<Navigate to="/variables" replace />} />
           <Route path="/measurements" element={<MeasurementsPage />} />
+          <Route element={<ProtectedRoute roles={navigationAccess.restrictedStations} />}>
+            <Route path="/meteo-stations" element={<RestrictedStationsPage category="METEO" />} />
+            <Route path="/meteo-stations/:stationId" element={<RestrictedStationsPage category="METEO" />} />
+            <Route path="/fos-stations" element={<RestrictedStationsPage category="FOS" />} />
+            <Route path="/fos-stations/:stationId" element={<RestrictedStationsPage category="FOS" />} />
+          </Route>
           <Route path="/alerts" element={<AlertsPage />} />
           <Route element={<ProtectedRoute roles={navigationAccess.importMonitoring} />}>
             <Route path="/import-monitoring" element={<ImporterMonitoringPage />} />
