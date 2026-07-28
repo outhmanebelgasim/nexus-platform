@@ -284,7 +284,7 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
         if (station.getStationCategory() != request.stationCategory()) {
             throw new IllegalArgumentException("Graph category must match the selected station category");
         }
-        if (target.getStations().stream().noneMatch(assignedStation -> assignedStation.getId().equals(station.getId()))) {
+        if (actor.getRole() != Role.SUPER_ADMIN && target.getStations().stream().noneMatch(assignedStation -> assignedStation.getId().equals(station.getId()))) {
             throw new AccessDeniedException("Target user must be explicitly assigned to the graph station");
         }
         if (actor.getRole() == Role.ADMIN) {

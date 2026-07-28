@@ -18,6 +18,7 @@ import com.nexus.platform.repository.UserRepository;
 import com.nexus.platform.service.AccessControlService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -105,6 +106,43 @@ class UserGraphConfigurationServiceImplTest {
         assertThatThrownBy(() -> service.create(viewer.getId(), request(selectedStation, otherVariable), admin.getEmail()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Graph variables must belong to the selected station");
+    }
+
+    @Test
+    void superAdminCanCreateTechnicianGraphBeforeTargetStationAssignmentIsPersisted() {
+        AppUser superAdmin = user(Role.SUPER_ADMIN, 1L, "super@nexus.local");
+        AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
+        Station station = station(17L, "ET0_YAZID", StationCategory.METEO);
+        MeasurementVariable variable = variable(101L, station, "Cumul_Et0");
+
+        when(accessControlService.findUserByEmail(superAdmin.getEmail())).thenReturn(superAdmin);
+        when(userRepository.findById(technician.getId())).thenReturn(Optional.of(technician));
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+        when(stationRepository.getReferenceById(station.getId())).thenReturn(station);
+        when(measurementVariableRepository.findByStationIdAndIdIn(station.getId(), List.of(variable.getId()))).thenReturn(List.of(variable));
+        when(measurementVariableRepository.getReferenceById(variable.getId())).thenReturn(variable);
+        doAnswer(invocation -> invocation.getArgument(0)).when(graphRepository).save(any(UserGraphConfiguration.class));
+
+        var response = service.create(technician.getId(), request(station, variable), superAdmin.getEmail());
+
+        assertThat(response.userId()).isEqualTo(technician.getId());
+        assertThat(response.stationId()).isEqualTo(station.getId());
+    }
+
+    @Test
+    void adminCannotCreateTechnicianGraphOutsideTargetStationAssignments() {
+        AppUser admin = user(Role.ADMIN, 1L, "admin@nexus.local");
+        AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
+        Station station = station(17L, "ET0_YAZID", StationCategory.METEO);
+        MeasurementVariable variable = variable(101L, station, "Cumul_Et0");
+
+        when(accessControlService.findUserByEmail(admin.getEmail())).thenReturn(admin);
+        when(userRepository.findById(technician.getId())).thenReturn(Optional.of(technician));
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+
+        assertThatThrownBy(() -> service.create(technician.getId(), request(station, variable), admin.getEmail()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("Target user must be explicitly assigned to the graph station");
     }
 
     @Test
