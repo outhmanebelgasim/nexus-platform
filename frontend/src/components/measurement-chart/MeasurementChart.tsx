@@ -25,6 +25,9 @@ interface MeasurementChartProps {
   isLoading?: boolean;
   emptyMessage?: string;
   errorMessage?: string;
+  rangeStart?: string | null;
+  rangeEnd?: string | null;
+  csvModeLabel?: string;
 }
 
 interface TooltipState {
@@ -71,6 +74,9 @@ export function MeasurementChart({
   isLoading = false,
   emptyMessage,
   errorMessage,
+  rangeStart,
+  rangeEnd,
+  csvModeLabel,
 }: MeasurementChartProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
@@ -86,8 +92,11 @@ export function MeasurementChart({
     [hiddenSeries, series],
   );
   const allPoints = visibleSeries.flatMap((item) => item.points);
-  const minTime = allPoints.length > 0 ? Math.min(...allPoints.map((point) => point.timestamp)) : 0;
-  const maxTime = allPoints.length > 0 ? Math.max(...allPoints.map((point) => point.timestamp)) : 1;
+  const hasRenderableData = allPoints.length > 0 && !isLoading && !errorMessage;
+  const explicitMinTime = rangeStart ? new Date(rangeStart).getTime() : Number.NaN;
+  const explicitMaxTime = rangeEnd ? new Date(rangeEnd).getTime() : Number.NaN;
+  const minTime = Number.isFinite(explicitMinTime) ? explicitMinTime : allPoints.length > 0 ? Math.min(...allPoints.map((point) => point.timestamp)) : 0;
+  const maxTime = Number.isFinite(explicitMaxTime) ? explicitMaxTime : allPoints.length > 0 ? Math.max(...allPoints.map((point) => point.timestamp)) : 1;
   const minValue = typeof yAxisMin === "number" ? yAxisMin : allPoints.length > 0 ? Math.min(...allPoints.map((point) => point.value)) : 0;
   const maxValue = typeof yAxisMax === "number" ? yAxisMax : allPoints.length > 0 ? Math.max(...allPoints.map((point) => point.value)) : 1;
   const valueRange = maxValue - minValue || 1;
@@ -167,7 +176,7 @@ export function MeasurementChart({
   };
 
   const exportCsv = () => {
-    downloadFile("measurements-analytics.csv", exportMeasurementsAsCsv(measurements, variables), "text/csv;charset=utf-8");
+    downloadFile("measurements-analytics.csv", exportMeasurementsAsCsv(measurements, variables, csvModeLabel), "text/csv;charset=utf-8");
   };
 
   const resetZoom = () => {
@@ -221,7 +230,7 @@ export function MeasurementChart({
       <CardContent className="space-y-4">
         {errorMessage ? <Alert>{errorMessage}</Alert> : null}
         <ChartLegend series={series} hiddenSeries={hiddenSeries} onToggle={handleToggleSeries} />
-        {series.length > 0 ? (
+        {hasRenderableData ? (
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm" aria-live="polite">
             <span className="font-medium text-foreground">Visible range</span>
             <span className="tabular-nums text-muted-foreground">{visibleRangeLabel}</span>
@@ -232,43 +241,44 @@ export function MeasurementChart({
         ) : !errorMessage && series.length === 0 ? (
           <EmptyState title="No measurements" description={emptyMessage ?? "No measurements are available for this graph and time range."} />
         ) : null}
-        <div className={cn("relative overflow-hidden rounded-md border bg-card p-2", canPan ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair")}>
-          <svg
-            ref={svgRef}
-            className="aspect-[16/9] min-h-[260px] w-full touch-none sm:min-h-[340px] lg:min-h-[420px]"
-            role="img"
-            aria-label="Generated measurements analytics chart"
-            viewBox={`0 0 ${width} ${height}`}
-            onPointerMove={handlePointerMove}
-            onWheel={(event) => {
-              if (chartSeries.length === 0) {
-                return;
-              }
-              event.preventDefault();
-              const rect = event.currentTarget.getBoundingClientRect();
-              const chartX = pointerToChartX(event.clientX, rect.left, rect.width, width);
-              const anchorRatio = (chartX - padding.left) / (width - padding.left - padding.right);
-              const viewport = zoomAroundTimestamp(zoom, effectivePanOffset, wheelZoomDirection(event.deltaY), anchorRatio, timeRange);
-              setZoom(viewport.zoom);
-              setPanOffset(viewport.panOffset);
-            }}
-            onPointerDown={(event) => {
-              if (zoom > 1) {
-                event.currentTarget.setPointerCapture(event.pointerId);
-                setPanStart(event.clientX);
-              }
-            }}
-            onPointerUp={(event) => {
-              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                event.currentTarget.releasePointerCapture(event.pointerId);
-              }
-              setPanStart(null);
-            }}
-            onPointerLeave={() => {
-              setTooltip(null);
-              setPanStart(null);
-            }}
-          >
+        {hasRenderableData ? (
+          <div className={cn("relative overflow-hidden rounded-md border bg-card p-2", canPan ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair")}>
+            <svg
+              ref={svgRef}
+              className="aspect-[16/9] min-h-[260px] w-full touch-none sm:min-h-[340px] lg:min-h-[420px]"
+              role="img"
+              aria-label="Generated measurements analytics chart"
+              viewBox={`0 0 ${width} ${height}`}
+              onPointerMove={handlePointerMove}
+              onWheel={(event) => {
+                if (chartSeries.length === 0) {
+                  return;
+                }
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                const chartX = pointerToChartX(event.clientX, rect.left, rect.width, width);
+                const anchorRatio = (chartX - padding.left) / (width - padding.left - padding.right);
+                const viewport = zoomAroundTimestamp(zoom, effectivePanOffset, wheelZoomDirection(event.deltaY), anchorRatio, timeRange);
+                setZoom(viewport.zoom);
+                setPanOffset(viewport.panOffset);
+              }}
+              onPointerDown={(event) => {
+                if (zoom > 1) {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setPanStart(event.clientX);
+                }
+              }}
+              onPointerUp={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+                setPanStart(null);
+              }}
+              onPointerLeave={() => {
+                setTooltip(null);
+                setPanStart(null);
+              }}
+            >
             <rect width={width} height={height} fill={themeColor("--card")} />
             {Array.from({ length: 5 }).map((_, index) => {
               const y = padding.top + (index / 4) * (height - padding.top - padding.bottom);
@@ -370,9 +380,10 @@ export function MeasurementChart({
                 ))}
               </g>
             ) : null}
-          </svg>
-        </div>
-        {series.length > 0 ? (
+            </svg>
+          </div>
+        ) : null}
+        {hasRenderableData ? (
           <div className="space-y-2" aria-label="Timeline navigator">
             <div
               className="relative h-11 touch-none select-none rounded-md border bg-muted/40 px-2"

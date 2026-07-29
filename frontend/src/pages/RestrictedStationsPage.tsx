@@ -291,15 +291,15 @@ export function RestrictedStationsPage({ category }: RestrictedStationsPageProps
                 variables={variables}
                 series={buildSeries(measurements, variables)}
                 title={graph.title}
-                description={
-                  measurementState.message ??
-                  `${selectedStation?.code ?? "Selected station"}${result?.aggregationNote ? ` - ${result.aggregationNote}` : ""}`
-                }
+                description={measurementState.message ?? `${selectedStation?.code ?? "Selected station"}${result?.aggregationNote ? ` - ${result.aggregationNote}` : ""}`}
                 isLoading={measurementState.status === "loading"}
                 emptyMessage={measurementState.status === "empty" ? "No measurements are available for this graph and time range." : undefined}
                 errorMessage={measurementState.status === "error" ? measurementState.message : undefined}
                 yAxisMin={Number(graph.yAxisMin)}
                 yAxisMax={Number(graph.yAxisMax)}
+                rangeStart={result?.firstMeasuredAt}
+                rangeEnd={result?.lastMeasuredAt}
+                csvModeLabel={result?.aggregated ? `aggregated:${result.bucketInterval ?? "all-time"}` : "raw"}
               />
             );
           })}

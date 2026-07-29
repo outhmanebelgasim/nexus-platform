@@ -48,4 +48,7 @@ export interface RestrictedGraphMeasurement {
   measurements: Measurement[];
   aggregated: boolean;
   aggregationNote: string | null;
+  firstMeasuredAt: string | null;
+  lastMeasuredAt: string | null;
+  bucketInterval: string | null;
 }
