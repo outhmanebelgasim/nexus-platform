@@ -2,6 +2,8 @@ package com.nexus.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import com.nexus.domain.enums.GraphAxis;
+import com.nexus.domain.enums.GraphSeriesType;
 
 @Entity
 @Table(
@@ -36,6 +38,17 @@ public class UserGraphVariable {
 
     @Column(name = "variable_code", nullable = false, length = 150)
     private String variableCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private GraphAxis axis;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "chart_type", nullable = false, length = 20)
+    private GraphSeriesType chartType;
+
+    @Column(name = "custom_label", length = 150)
+    private String customLabel;
 
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;

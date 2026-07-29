@@ -53,6 +53,27 @@ public class UserGraphConfiguration {
     @Column(name = "y_axis_max", nullable = false, precision = 14, scale = 4)
     private BigDecimal yAxisMax;
 
+    @Column(name = "primary_axis_label", length = 120)
+    private String primaryAxisLabel;
+
+    @Column(name = "primary_axis_unit", length = 40)
+    private String primaryAxisUnit;
+
+    @Column(name = "secondary_axis_enabled", nullable = false)
+    private boolean secondaryAxisEnabled;
+
+    @Column(name = "secondary_axis_label", length = 120)
+    private String secondaryAxisLabel;
+
+    @Column(name = "secondary_axis_unit", length = 40)
+    private String secondaryAxisUnit;
+
+    @Column(name = "secondary_axis_min", precision = 14, scale = 4)
+    private BigDecimal secondaryAxisMin;
+
+    @Column(name = "secondary_axis_max", precision = 14, scale = 4)
+    private BigDecimal secondaryAxisMax;
+
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder;
 
