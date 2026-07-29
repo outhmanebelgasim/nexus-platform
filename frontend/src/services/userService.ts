@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api";
-import type { PasswordPayload, ProfilePayload, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
+import type { AdminPasswordResetPayload, PasswordPayload, ProfilePayload, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 
 const USERS_ENDPOINT = "/api/users";
 
@@ -31,6 +31,10 @@ export const userService = {
 
   async updatePassword(payload: PasswordPayload) {
     await apiClient.put(`${USERS_ENDPOINT}/me/password`, payload);
+  },
+
+  async resetPassword(id: number, payload: AdminPasswordResetPayload) {
+    await apiClient.put(`${USERS_ENDPOINT}/${id}/password`, payload);
   },
 
   async create(payload: UserPayload) {

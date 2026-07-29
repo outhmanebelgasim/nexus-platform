@@ -1,4 +1,4 @@
-import { BarChart3, Building2, Check, MapPin, Plus, RefreshCcw, Shield, UserX, Users } from "lucide-react";
+import { BarChart3, Building2, Check, Eye, EyeOff, MapPin, Plus, RefreshCcw, Shield, UserX, Users } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { z } from "zod";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -29,7 +29,7 @@ import { filterStationsByCategory, filterVariablesForGraphStation } from "@/lib/
 import { graphService } from "@/services/graphService";
 import { measurementVariableService } from "@/services/measurementVariableService";
 import { userService } from "@/services/userService";
-import type { StationCategory, UserGraphConfiguration, UserGraphPayload } from "@/types/graph";
+import type { GraphAxis, GraphSeriesType, StationCategory, UserGraphConfiguration, UserGraphPayload } from "@/types/graph";
 import type { MeasurementVariable } from "@/types/measurementVariable";
 import type { Role, User, UserPayload, UserPermissions, UserStatus } from "@/types/user";
 import { formatDateTime } from "@/utils/format";
@@ -39,9 +39,12 @@ type RoleFilter = "ALL" | Role;
 type UserFormValues = UserPayload & {
   confirmPassword?: string;
   chartVariableIds?: number[];
+  newPassword?: string;
+  confirmNewPassword?: string;
 };
 type UserFieldErrors = Partial<Record<keyof UserFormValues, string>>;
-type GraphFormValues = Omit<UserGraphPayload, "stationId" | "variables"> & { variableIds: number[] };
+type GraphVariableFormValue = { variableId: number; axis: GraphAxis; chartType: GraphSeriesType; displayOrder: number; customLabel?: string | null };
+type GraphFormValues = Omit<UserGraphPayload, "stationId" | "variables"> & { variables: GraphVariableFormValue[] };
 
 const baseUserSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required.").max(150),
@@ -111,6 +114,14 @@ function variableDescription(variable: MeasurementVariable, stationNameById: Map
   return parts.join(" - ");
 }
 
+function isValidGraphAxis(value: unknown): value is GraphAxis {
+  return value === "PRIMARY" || value === "SECONDARY";
+}
+
+function isValidGraphSeriesType(value: unknown): value is GraphSeriesType {
+  return value === "LINE" || value === "BAR";
+}
+
 export function UsersPage() {
   const { users, isLoading, isSaving, error, loadUsers, createUser, updateUser, updateUserStatus, deleteUser } = useUsers();
   const { user: currentUser } = useAuth();
@@ -136,21 +147,32 @@ export function UsersPage() {
   const [graphsLoading, setGraphsLoading] = useState(false);
   const [graphError, setGraphError] = useState<string | null>(null);
   const [graphStationId, setGraphStationId] = useState<number | null>(null);
+  const [editingGraphId, setEditingGraphId] = useState<number | null>(null);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [graphForm, setGraphForm] = useState<GraphFormValues>({
     title: "",
     description: "",
     stationCategory: "METEO",
     yAxisMin: 0,
     yAxisMax: 100,
+    primaryAxisLabel: "",
+    primaryAxisUnit: "",
+    secondaryAxisEnabled: false,
+    secondaryAxisLabel: "",
+    secondaryAxisUnit: "",
+    secondaryAxisMin: null,
+    secondaryAxisMax: null,
     displayOrder: 1,
     active: true,
-    variableIds: [],
+    variables: [],
   });
   const [formValues, setFormValues] = useState<UserFormValues>({
     fullName: "",
     email: "",
     password: "",
     confirmPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
     role: "VIEWER",
     status: "ACTIVE",
     chartVariableIds: [],
@@ -226,13 +248,13 @@ export function UsersPage() {
   const selectedStationSet = useMemo(() => new Set(selectedStationIds), [selectedStationIds]);
   const selectedChartVariableSet = useMemo(() => new Set(selectedChartVariableIds), [selectedChartVariableIds]);
   const scopedStationIds = useMemo(() => {
-    const ids = new Set(selectedStationIds);
-    if (selectedFarmIds.length > 0) {
-      stations
-        .filter((station) => selectedFarmSet.has(station.farmId))
-        .forEach((station) => ids.add(station.id));
+    if (selectedStationIds.length > 0) {
+      return selectedStationIds;
     }
-    return Array.from(ids);
+    if (selectedFarmIds.length === 0) {
+      return [];
+    }
+    return stations.filter((station) => selectedFarmSet.has(station.farmId)).map((station) => station.id);
   }, [selectedFarmIds.length, selectedStationIds, selectedFarmSet, stations]);
   const scopedStationSet = useMemo(() => new Set(scopedStationIds), [scopedStationIds]);
   const variableById = useMemo(() => new Map(availableVariables.map((variable) => [variable.id, variable])), [availableVariables]);
@@ -302,13 +324,16 @@ export function UsersPage() {
   }, [availableStations, graphForm.stationCategory, selectedStationSet]);
   const validGraphStationId = graphStationId && graphStationOptions.some((station) => station.id === graphStationId) ? graphStationId : null;
   const graphVariableOptions = useMemo(() => {
+    const selectedChartVariableSet = new Set(selectedChartVariableIds);
     return filterVariablesForGraphStation(availableChartVariables, stations, validGraphStationId, graphForm.stationCategory)
+      .filter((variable) => selectedChartVariableSet.has(variable.id))
       .sort((first, second) => variableLabel(first).localeCompare(variableLabel(second)));
-  }, [availableChartVariables, graphForm.stationCategory, stations, validGraphStationId]);
+  }, [availableChartVariables, graphForm.stationCategory, selectedChartVariableIds, stations, validGraphStationId]);
   const validGraphVariableIds = useMemo(
-    () => graphForm.variableIds.filter((variableId) => graphVariableOptions.some((variable) => variable.id === variableId)),
-    [graphForm.variableIds, graphVariableOptions],
+    () => graphForm.variables.filter((variable) => graphVariableOptions.some((option) => option.id === variable.variableId)),
+    [graphForm.variables, graphVariableOptions],
   );
+  const validGraphVariableIdSet = useMemo(() => new Set(validGraphVariableIds.map((variable) => variable.variableId)), [validGraphVariableIds]);
 
   useEffect(() => {
     let ignore = false;
@@ -378,6 +403,10 @@ export function UsersPage() {
           if (unchanged) {
             return current;
           }
+          showToast({
+            title: "Chart Access updated",
+            description: "Variables outside the current station access were removed.",
+          });
           return {
             ...current,
             chartVariableIds: nextIds,
@@ -402,9 +431,27 @@ export function UsersPage() {
     return () => {
       ignore = true;
     };
-  }, [assignableVariableIdSet, formMode, isSuperAdmin, scopedStationIds]);
+  }, [assignableVariableIdSet, formMode, isSuperAdmin, scopedStationIds, showToast]);
+
+  useEffect(() => {
+    const selectedIds = new Set(selectedChartVariableIds);
+    // Keep hidden graph-variable state aligned with the current Chart Access.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGraphForm((current) => {
+      const nextVariables = current.variables.filter((variable) => {
+        const measurementVariable = variableById.get(variable.variableId);
+        return selectedIds.has(variable.variableId) && (!validGraphStationId || measurementVariable?.stationId === validGraphStationId);
+      });
+      if (nextVariables.length === current.variables.length) {
+        return current;
+      }
+      setGraphError("Graph variables outside the current Chart Access were removed.");
+      return { ...current, variables: nextVariables };
+    });
+  }, [selectedChartVariableIds, validGraphStationId, variableById]);
 
   const applyChartVariableIds = (variableIds: number[]) => {
+    setGraphError(null);
     setFormValues((current) => ({
       ...current,
       chartVariableIds: variableIds,
@@ -445,11 +492,14 @@ export function UsersPage() {
     setAssignedGraphs([]);
     setGraphError(null);
     setGraphStationId(null);
+    setShowAdminPassword(false);
     setFormValues({
       fullName: "",
       email: "",
       password: "",
       confirmPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
       role: "VIEWER",
       status: "ACTIVE",
       farmIds: [],
@@ -475,21 +525,32 @@ export function UsersPage() {
     setAssignedGraphs([]);
     setGraphError(null);
     setGraphStationId(null);
+    setEditingGraphId(null);
+    setShowAdminPassword(false);
     setGraphForm({
       title: "",
       description: "",
       stationCategory: "METEO",
       yAxisMin: 0,
       yAxisMax: 100,
+      primaryAxisLabel: "",
+      primaryAxisUnit: "",
+      secondaryAxisEnabled: false,
+      secondaryAxisLabel: "",
+      secondaryAxisUnit: "",
+      secondaryAxisMin: null,
+      secondaryAxisMax: null,
       displayOrder: 1,
       active: true,
-      variableIds: [],
+      variables: [],
     });
     setFormValues({
       fullName: user.fullName,
       email: user.email,
       password: "",
       confirmPassword: "",
+      newPassword: "",
+      confirmNewPassword: "",
       role: user.role,
       status: user.status,
       farmIds: user.farmIds ?? [],
@@ -507,6 +568,10 @@ export function UsersPage() {
     setSelectedUser(null);
     setFormError(null);
     setFieldErrors({});
+    setGraphError(null);
+    setGraphStationId(null);
+    setEditingGraphId(null);
+    setShowAdminPassword(false);
   };
 
   const loadAssignedGraphs = async (userId: number) => {
@@ -527,32 +592,157 @@ export function UsersPage() {
     if (!selectedUser) {
       return;
     }
-    if (!graphForm.title.trim() || !validGraphStationId || validGraphVariableIds.length === 0 || Number(graphForm.yAxisMax) <= Number(graphForm.yAxisMin)) {
-      setGraphError("Graph title, variables and a valid Y-axis range are required.");
+    setGraphError(null);
+    const selectedVariables = [...validGraphVariableIds].sort((first, second) => first.displayOrder - second.displayOrder);
+    const validationErrors: string[] = [];
+    if (!Number.isInteger(selectedUser.id) || selectedUser.id <= 0) {
+      validationErrors.push("A valid target user is required.");
+    }
+    if (!Number.isInteger(validGraphStationId) || (validGraphStationId ?? 0) <= 0) {
+      validationErrors.push("A valid station must be selected.");
+    }
+    if (!graphForm.title.trim()) {
+      validationErrors.push("Graph title is required.");
+    }
+    const graphOrder = Number(graphForm.displayOrder);
+    if (!Number.isInteger(graphOrder) || graphOrder < 1) {
+      validationErrors.push("Graph order must be greater than zero.");
+    }
+    const primaryMin = Number(graphForm.yAxisMin);
+    const primaryMax = Number(graphForm.yAxisMax);
+    if (!Number.isFinite(primaryMin)) {
+      validationErrors.push("Primary minimum is required.");
+    }
+    if (!Number.isFinite(primaryMax)) {
+      validationErrors.push("Primary maximum is required.");
+    }
+    if (Number.isFinite(primaryMin) && Number.isFinite(primaryMax) && primaryMax <= primaryMin) {
+      validationErrors.push("Primary minimum must be lower than primary maximum.");
+    }
+    if (selectedVariables.length === 0) {
+      validationErrors.push("Select at least one variable.");
+    }
+    if (graphForm.variables.length !== selectedVariables.length) {
+      setGraphForm((current) => ({ ...current, variables: selectedVariables }));
+    }
+    selectedVariables.forEach((variable) => {
+      const measurementVariable = variableById.get(variable.variableId);
+      const label = measurementVariable ? variableLabel(measurementVariable) : `#${variable.variableId}`;
+      if (!Number.isInteger(variable.variableId) || variable.variableId <= 0) {
+        validationErrors.push(`Variable "${label}" requires a valid measurement variable ID.`);
+      }
+      if (!measurementVariable) {
+        validationErrors.push(`Variable "${label}" is no longer available for the selected station and Chart Access.`);
+      }
+      if (!isValidGraphAxis(variable.axis)) {
+        validationErrors.push(`Variable "${label}" requires an axis assignment.`);
+      }
+      if (!isValidGraphSeriesType(variable.chartType)) {
+        validationErrors.push(`Variable "${label}" requires a chart type.`);
+      }
+      if (!Number.isInteger(variable.displayOrder) || variable.displayOrder < 1) {
+        validationErrors.push(`Variable "${label}" requires a display order greater than zero.`);
+      }
+      if (variable.axis === "SECONDARY" && !graphForm.secondaryAxisEnabled) {
+        validationErrors.push(`Secondary axis is disabled but variable "${label}" is assigned to it.`);
+      }
+    });
+    const usesSecondaryAxis = selectedVariables.some((variable) => variable.axis === "SECONDARY");
+    const secondaryMin = graphForm.secondaryAxisMin === null ? null : Number(graphForm.secondaryAxisMin);
+    const secondaryMax = graphForm.secondaryAxisMax === null ? null : Number(graphForm.secondaryAxisMax);
+    if (graphForm.secondaryAxisEnabled && !usesSecondaryAxis) {
+      validationErrors.push("Secondary axis is enabled but no selected variable uses it.");
+    }
+    if (graphForm.secondaryAxisEnabled) {
+      if (secondaryMin !== null && !Number.isFinite(secondaryMin)) {
+        validationErrors.push("Secondary minimum must be a valid number.");
+      }
+      if (secondaryMax !== null && !Number.isFinite(secondaryMax)) {
+        validationErrors.push("Secondary maximum must be a valid number.");
+      }
+      if ((secondaryMin === null) !== (secondaryMax === null)) {
+        validationErrors.push("Secondary minimum and maximum must both be filled or both left empty.");
+      }
+      if (secondaryMin !== null && secondaryMax !== null && Number.isFinite(secondaryMin) && Number.isFinite(secondaryMax) && secondaryMax <= secondaryMin) {
+        validationErrors.push("Secondary minimum must be lower than secondary maximum.");
+      }
+    }
+    if (validationErrors.length > 0) {
+      setGraphError(validationErrors.join(" "));
       return;
     }
+    const stationId = validGraphStationId ?? 0;
     const payload: UserGraphPayload = {
       ...graphForm,
-      stationId: validGraphStationId,
+      stationId,
       title: graphForm.title.trim(),
       description: graphForm.description?.trim() || null,
-      yAxisMin: Number(graphForm.yAxisMin),
-      yAxisMax: Number(graphForm.yAxisMax),
-      variables: validGraphVariableIds.map((variableId, index) => ({ variableId, displayOrder: index + 1 })),
+      displayOrder: graphOrder,
+      yAxisMin: primaryMin,
+      yAxisMax: primaryMax,
+      secondaryAxisMin: graphForm.secondaryAxisEnabled ? secondaryMin : null,
+      secondaryAxisMax: graphForm.secondaryAxisEnabled ? secondaryMax : null,
+      variables: selectedVariables.map((variable) => ({ ...variable, displayOrder: variable.displayOrder })),
     };
     setGraphsLoading(true);
-    setGraphError(null);
     try {
-      await graphService.createForUser(selectedUser.id, payload);
+      const userPayload: UserPayload = {
+        fullName: formValues.fullName,
+        email: formValues.email,
+        role: formValues.role,
+        status: formValues.status,
+        farmIds: formValues.farmIds ?? [],
+        stationIds: formValues.stationIds ?? [],
+        variableIds: formValues.chartVariableIds ?? [],
+        allowedMeasurementTypes: [],
+      };
+      await updateUser(selectedUser.id, userPayload);
+      const isEditingPersistedGraph = editingGraphId !== null && assignedGraphs.some((graph) => graph.id === editingGraphId);
+      if (isEditingPersistedGraph) {
+        await graphService.updateForUser(selectedUser.id, editingGraphId, payload);
+      } else {
+        await graphService.createForUser(selectedUser.id, payload);
+      }
       await loadAssignedGraphs(selectedUser.id);
+      setEditingGraphId(null);
       setGraphStationId(null);
-      setGraphForm((current) => ({ ...current, title: "", description: "", variableIds: [], displayOrder: assignedGraphs.length + 2 }));
-      showToast({ title: "Graph assigned", description: "The graph configuration was saved." });
+      setGraphForm((current) => ({ ...current, title: "", description: "", variables: [], displayOrder: assignedGraphs.length + 2 }));
+      showToast({ title: isEditingPersistedGraph ? "Graph updated" : "Graph assigned", description: "The graph configuration was saved." });
     } catch (saveError) {
       setGraphError(getApiErrorMessage(saveError));
     } finally {
       setGraphsLoading(false);
     }
+  };
+
+  const editGraph = (graph: UserGraphConfiguration) => {
+    setEditingGraphId(graph.id);
+    setGraphStationId(graph.stationId);
+    setGraphForm({
+      title: graph.title,
+      description: graph.description ?? "",
+      stationCategory: graph.stationCategory,
+      yAxisMin: Number(graph.yAxisMin),
+      yAxisMax: Number(graph.yAxisMax),
+      primaryAxisLabel: graph.primaryAxisLabel ?? "",
+      primaryAxisUnit: graph.primaryAxisUnit ?? "",
+      secondaryAxisEnabled: graph.secondaryAxisEnabled,
+      secondaryAxisLabel: graph.secondaryAxisLabel ?? "",
+      secondaryAxisUnit: graph.secondaryAxisUnit ?? "",
+      secondaryAxisMin: graph.secondaryAxisMin,
+      secondaryAxisMax: graph.secondaryAxisMax,
+      displayOrder: graph.displayOrder,
+      active: graph.active,
+      variables: graph.variables
+        .filter((variable) => variable.variableId !== null)
+        .map((variable) => ({
+          variableId: variable.variableId ?? 0,
+          axis: variable.axis ?? "PRIMARY",
+          chartType: variable.chartType ?? "LINE",
+          displayOrder: variable.displayOrder,
+          customLabel: variable.customLabel,
+        })),
+    });
   };
 
   const removeGraph = async (graphId: number) => {
@@ -563,6 +753,9 @@ export function UsersPage() {
     setGraphError(null);
     try {
       await graphService.removeForUser(selectedUser.id, graphId);
+      if (editingGraphId === graphId) {
+        setEditingGraphId(null);
+      }
       await loadAssignedGraphs(selectedUser.id);
       showToast({ title: "Graph removed", description: "The graph configuration was removed." });
     } catch (removeError) {
@@ -595,6 +788,29 @@ export function UsersPage() {
       setFormError("Passwords do not match.");
       return;
     }
+    const wantsPasswordReset = formMode === "edit" && Boolean((formValues.newPassword ?? "") || (formValues.confirmNewPassword ?? ""));
+    if (wantsPasswordReset) {
+      if (!formValues.newPassword) {
+        setFieldErrors({ newPassword: "New password is required." });
+        setFormError("New password is required.");
+        return;
+      }
+      if (formValues.newPassword.length < 8 || formValues.newPassword.length > 128) {
+        setFieldErrors({ newPassword: "Password must contain between 8 and 128 characters." });
+        setFormError("Password must contain between 8 and 128 characters.");
+        return;
+      }
+      if (!formValues.confirmNewPassword) {
+        setFieldErrors({ confirmNewPassword: "Please confirm the new password." });
+        setFormError("Please confirm the new password.");
+        return;
+      }
+      if (formValues.newPassword !== formValues.confirmNewPassword) {
+        setFieldErrors({ confirmNewPassword: "Passwords do not match." });
+        setFormError("Passwords do not match.");
+        return;
+      }
+    }
 
     if (formValues.role !== "SUPER_ADMIN" && scopedStationIds.length > 0 && selectedChartVariableIds.length === 0) {
       setFieldErrors({ chartVariableIds: "Select at least one measurement variable." });
@@ -616,7 +832,23 @@ export function UsersPage() {
       };
       if (formMode === "edit" && selectedUser) {
         await updateUser(selectedUser.id, payload);
-        showToast({ title: "User updated", description: `${payload.fullName} was updated.` });
+        if (wantsPasswordReset) {
+          try {
+            await userService.resetPassword(selectedUser.id, {
+              newPassword: formValues.newPassword ?? "",
+              confirmPassword: formValues.confirmNewPassword ?? "",
+            });
+            setFormValues((current) => ({ ...current, newPassword: "", confirmNewPassword: "" }));
+            showToast({ title: "User updated", description: `${payload.fullName} was updated and the password was reset.` });
+          } catch (passwordError) {
+            const message = getApiErrorMessage(passwordError, { badRequest: "Please check the password details." });
+            setFormError(`User details were updated, but password reset failed: ${message}`);
+            showToast({ title: "Password reset failed", description: message, variant: "error" });
+            return;
+          }
+        } else {
+          showToast({ title: "User updated", description: `${payload.fullName} was updated.` });
+        }
       } else {
         await createUser(payload);
         showToast({ title: "User created", description: `${payload.fullName} can now access NEXUS.` });
@@ -858,6 +1090,53 @@ export function UsersPage() {
               </div>
             </div>
           </FormSection>
+
+          {formMode === "edit" && selectedUser && canManageUser(selectedUser) ? (
+            <FormSection title="Password reset" description="Leave blank to keep the current password. The current password is never displayed.">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="adminNewPassword">New password</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="adminNewPassword"
+                      type={showAdminPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Minimum 8 characters"
+                      value={formValues.newPassword ?? ""}
+                      onChange={(event) => setFormValues((current) => ({ ...current, newPassword: event.target.value }))}
+                      aria-invalid={Boolean(fieldErrors.newPassword)}
+                      aria-describedby={fieldErrors.newPassword ? "adminNewPassword-error" : undefined}
+                      className={fieldErrors.newPassword ? "border-destructive focus-visible:ring-destructive" : undefined}
+                    />
+                    <Button type="button" variant="outline" size="icon" aria-label={showAdminPassword ? "Hide password" : "Show password"} onClick={() => setShowAdminPassword((current) => !current)}>
+                      {showAdminPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </Button>
+                  </div>
+                  {fieldErrors.newPassword ? <p id="adminNewPassword-error" className="text-sm text-destructive">{fieldErrors.newPassword}</p> : null}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="adminConfirmNewPassword">Confirm new password</Label>
+                  <Input
+                    id="adminConfirmNewPassword"
+                    type={showAdminPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Repeat password"
+                    value={formValues.confirmNewPassword ?? ""}
+                    onChange={(event) => setFormValues((current) => ({ ...current, confirmNewPassword: event.target.value }))}
+                    aria-invalid={Boolean(fieldErrors.confirmNewPassword)}
+                    aria-describedby={fieldErrors.confirmNewPassword ? "adminConfirmNewPassword-error" : undefined}
+                    className={fieldErrors.confirmNewPassword ? "border-destructive focus-visible:ring-destructive" : undefined}
+                  />
+                  {fieldErrors.confirmNewPassword ? <p id="adminConfirmNewPassword-error" className="text-sm text-destructive">{fieldErrors.confirmNewPassword}</p> : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setFormValues((current) => ({ ...current, newPassword: "", confirmNewPassword: "" }))}>
+                  Clear password fields
+                </Button>
+              </div>
+            </FormSection>
+          ) : null}
 
           <FormSection title="Role and status" description="Control what this account can do inside the platform.">
             <div className="grid gap-4 md:grid-cols-4">
@@ -1154,8 +1433,9 @@ export function UsersPage() {
                         id="graphCategory"
                         value={graphForm.stationCategory}
                         onChange={(event) => {
+                          setGraphError(null);
                           setGraphStationId(null);
-                          setGraphForm((current) => ({ ...current, stationCategory: event.target.value as StationCategory, variableIds: [] }));
+                          setGraphForm((current) => ({ ...current, stationCategory: event.target.value as StationCategory, variables: [] }));
                         }}
                       >
                         <option value="METEO">METEO</option>
@@ -1168,12 +1448,13 @@ export function UsersPage() {
                         id="graphStation"
                         value={validGraphStationId ?? ""}
                         onChange={(event) => {
+                          setGraphError(null);
                           const nextStationId = event.target.value ? Number(event.target.value) : null;
                           setGraphStationId(nextStationId);
                           const nextVariables = filterVariablesForGraphStation(availableChartVariables, stations, nextStationId, graphForm.stationCategory);
                           setGraphForm((current) => ({
                             ...current,
-                            variableIds: current.variableIds.filter((variableId) => nextVariables.some((variable) => variable.id === variableId)),
+                            variables: current.variables.filter((variable) => nextVariables.some((option) => option.id === variable.variableId)),
                           }));
                         }}
                       >
@@ -1191,13 +1472,45 @@ export function UsersPage() {
                       <Input id="graphOrder" type="number" min="1" value={graphForm.displayOrder} onChange={(event) => setGraphForm((current) => ({ ...current, displayOrder: Number(event.target.value) }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="graphMin">Y minimum</Label>
+                      <Label htmlFor="graphPrimaryLabel">Primary axis label</Label>
+                      <Input id="graphPrimaryLabel" value={graphForm.primaryAxisLabel ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, primaryAxisLabel: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphPrimaryUnit">Primary axis unit</Label>
+                      <Input id="graphPrimaryUnit" value={graphForm.primaryAxisUnit ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, primaryAxisUnit: event.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graphMin">Primary minimum</Label>
                       <Input id="graphMin" type="number" value={graphForm.yAxisMin} onChange={(event) => setGraphForm((current) => ({ ...current, yAxisMin: Number(event.target.value) }))} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="graphMax">Y maximum</Label>
+                      <Label htmlFor="graphMax">Primary maximum</Label>
                       <Input id="graphMax" type="number" value={graphForm.yAxisMax} onChange={(event) => setGraphForm((current) => ({ ...current, yAxisMax: Number(event.target.value) }))} />
                     </div>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={graphForm.secondaryAxisEnabled} onChange={(event) => setGraphForm((current) => ({ ...current, secondaryAxisEnabled: event.target.checked }))} />
+                      Secondary Y axis
+                    </label>
+                    {graphForm.secondaryAxisEnabled ? (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="graphSecondaryLabel">Secondary axis label</Label>
+                          <Input id="graphSecondaryLabel" value={graphForm.secondaryAxisLabel ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, secondaryAxisLabel: event.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="graphSecondaryUnit">Secondary axis unit</Label>
+                          <Input id="graphSecondaryUnit" value={graphForm.secondaryAxisUnit ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, secondaryAxisUnit: event.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="graphSecondaryMin">Secondary minimum</Label>
+                          <Input id="graphSecondaryMin" type="number" value={graphForm.secondaryAxisMin ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, secondaryAxisMin: event.target.value === "" ? null : Number(event.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="graphSecondaryMax">Secondary maximum</Label>
+                          <Input id="graphSecondaryMax" type="number" value={graphForm.secondaryAxisMax ?? ""} onChange={(event) => setGraphForm((current) => ({ ...current, secondaryAxisMax: event.target.value === "" ? null : Number(event.target.value) }))} />
+                        </div>
+                      </>
+                    ) : null}
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" className="h-4 w-4 rounded border-input accent-primary" checked={graphForm.active} onChange={(event) => setGraphForm((current) => ({ ...current, active: event.target.checked }))} />
                       Active
@@ -1212,29 +1525,69 @@ export function UsersPage() {
                         <p className="p-2 text-sm text-muted-foreground">No active variables are available for the selected station.</p>
                       ) : (
                         graphVariableOptions.map((variable) => (
-                          <label key={variable.code} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
+                          <div key={variable.code} className="grid gap-2 rounded-md border px-2 py-2 text-sm sm:grid-cols-[1fr_120px_100px_72px]">
+                            <label className="flex cursor-pointer items-center gap-2">
                             <input
                               type="checkbox"
                               className="h-4 w-4 rounded border-input accent-primary"
-                              checked={validGraphVariableIds.includes(variable.id)}
+                              checked={validGraphVariableIdSet.has(variable.id)}
                               onChange={() =>
                                 setGraphForm((current) => ({
                                   ...current,
-                                  variableIds: validGraphVariableIds.includes(variable.id)
-                                    ? validGraphVariableIds.filter((variableId) => variableId !== variable.id)
-                                    : [...validGraphVariableIds, variable.id],
+                                  variables: validGraphVariableIdSet.has(variable.id)
+                                    ? current.variables.filter((item) => item.variableId !== variable.id)
+                                    : [...current.variables, { variableId: variable.id, axis: "PRIMARY", chartType: "LINE", displayOrder: current.variables.length + 1 }],
                                 }))
                               }
                             />
                             <span>{variableLabel(variable)}{variable.unit ? ` (${variable.unit})` : ""}</span>
-                          </label>
+                            </label>
+                            <Select
+                              value={graphForm.variables.find((item) => item.variableId === variable.id)?.axis ?? "PRIMARY"}
+                              disabled={!validGraphVariableIdSet.has(variable.id)}
+                              onChange={(event) =>
+                                setGraphForm((current) => ({
+                                  ...current,
+                                  variables: current.variables.map((item) => item.variableId === variable.id ? { ...item, axis: event.target.value as GraphAxis } : item),
+                                }))
+                              }
+                            >
+                              <option value="PRIMARY">Primary</option>
+                              <option value="SECONDARY">Secondary</option>
+                            </Select>
+                            <Select
+                              value={graphForm.variables.find((item) => item.variableId === variable.id)?.chartType ?? "LINE"}
+                              disabled={!validGraphVariableIdSet.has(variable.id)}
+                              onChange={(event) =>
+                                setGraphForm((current) => ({
+                                  ...current,
+                                  variables: current.variables.map((item) => item.variableId === variable.id ? { ...item, chartType: event.target.value as GraphSeriesType } : item),
+                                }))
+                              }
+                            >
+                              <option value="LINE">Line</option>
+                              <option value="BAR">Bar</option>
+                            </Select>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={graphForm.variables.find((item) => item.variableId === variable.id)?.displayOrder ?? ""}
+                              disabled={!validGraphVariableIdSet.has(variable.id)}
+                              onChange={(event) =>
+                                setGraphForm((current) => ({
+                                  ...current,
+                                  variables: current.variables.map((item) => item.variableId === variable.id ? { ...item, displayOrder: Number(event.target.value) } : item),
+                                }))
+                              }
+                            />
+                          </div>
                         ))
                       )}
                     </div>
                   </div>
                   <Button type="button" onClick={saveGraph} disabled={graphsLoading || graphVariableOptions.length === 0}>
                     <Plus className="h-4 w-4" aria-hidden="true" />
-                    Add graph
+                    {editingGraphId ? "Update graph" : "Add graph"}
                   </Button>
                 </div>
 
@@ -1262,7 +1615,12 @@ export function UsersPage() {
                               Y {graph.yAxisMin} to {graph.yAxisMax} - {graph.variables.map((variable) => variable.displayName || variable.variableCode).join(", ")}
                             </p>
                           </div>
-                          <ActionIconButton action="delete" label="Remove graph" onClick={() => removeGraph(graph.id)} disabled={graphsLoading} />
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={() => editGraph(graph)} disabled={graphsLoading}>
+                              Edit
+                            </Button>
+                            <ActionIconButton action="delete" label="Remove graph" onClick={() => removeGraph(graph.id)} disabled={graphsLoading} />
+                          </div>
                         </div>
                       ))}
                     </div>

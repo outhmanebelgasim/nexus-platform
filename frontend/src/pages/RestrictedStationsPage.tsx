@@ -6,7 +6,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { OperationalBadge } from "@/components/shared/OperationalBadge";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { MeasurementChart } from "@/components/measurement-chart/MeasurementChart";
-import { buildSeries } from "@/components/measurement-chart/chartUtils";
+import { buildConfiguredSeries } from "@/components/measurement-chart/chartUtils";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -289,7 +289,7 @@ export function RestrictedStationsPage({ category }: RestrictedStationsPageProps
                 chartType="line"
                 measurements={measurements}
                 variables={variables}
-                series={buildSeries(measurements, variables)}
+                series={buildConfiguredSeries(measurements, graph.variables, variables)}
                 title={graph.title}
                 description={measurementState.message ?? `${selectedStation?.code ?? "Selected station"}${result?.aggregationNote ? ` - ${result.aggregationNote}` : ""}`}
                 isLoading={measurementState.status === "loading"}
@@ -297,6 +297,13 @@ export function RestrictedStationsPage({ category }: RestrictedStationsPageProps
                 errorMessage={measurementState.status === "error" ? measurementState.message : undefined}
                 yAxisMin={Number(graph.yAxisMin)}
                 yAxisMax={Number(graph.yAxisMax)}
+                primaryAxisLabel={graph.primaryAxisLabel}
+                primaryAxisUnit={graph.primaryAxisUnit}
+                secondaryAxisEnabled={graph.secondaryAxisEnabled}
+                secondaryAxisLabel={graph.secondaryAxisLabel}
+                secondaryAxisUnit={graph.secondaryAxisUnit}
+                secondaryAxisMin={graph.secondaryAxisMin}
+                secondaryAxisMax={graph.secondaryAxisMax}
                 rangeStart={result?.firstMeasuredAt}
                 rangeEnd={result?.lastMeasuredAt}
                 csvModeLabel={result?.aggregated ? `aggregated:${result.bucketInterval ?? "all-time"}` : "raw"}

@@ -1,4 +1,5 @@
 import type { Measurement, MeasurementAnalyticsFilters, TimeRangePreset } from "@/types/measurement";
+import type { GraphVariable } from "@/types/graph";
 import type { MeasurementVariable } from "@/types/measurementVariable";
 
 export const analyticsPalette = [
@@ -37,6 +38,8 @@ export interface ChartSeries {
   id: string;
   label: string;
   color: string;
+  axis?: "PRIMARY" | "SECONDARY";
+  chartType?: "LINE" | "BAR";
   points: Array<{ time: string; timestamp: number; value: number }>;
 }
 
@@ -102,6 +105,26 @@ export function buildSeries(measurements: Measurement[], variables: MeasurementV
       label: getVariableLabel(variable),
       color: analyticsPalette[index % analyticsPalette.length],
       points,
+    };
+  });
+}
+
+export function buildConfiguredSeries(measurements: Measurement[], graphVariables: GraphVariable[], variables: MeasurementVariable[]) {
+  const variableById = new Map(variables.map((variable) => [variable.id, variable]));
+  const orderedGraphVariables = [...graphVariables]
+    .filter((variable) => variable.variableId !== null)
+    .sort((first, second) => first.displayOrder - second.displayOrder);
+
+  return orderedGraphVariables.map<ChartSeries>((graphVariable, index) => {
+    const variable = variableById.get(graphVariable.variableId ?? 0);
+    const baseSeries = buildSeries(measurements, variable ? [variable] : [])[0];
+    return {
+      id: String(graphVariable.variableId),
+      label: graphVariable.customLabel?.trim() || graphVariable.displayName || variable?.displayName || graphVariable.variableCode,
+      color: analyticsPalette[index % analyticsPalette.length],
+      axis: graphVariable.axis,
+      chartType: graphVariable.chartType,
+      points: baseSeries?.points ?? [],
     };
   });
 }

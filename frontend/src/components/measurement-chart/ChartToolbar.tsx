@@ -28,31 +28,31 @@ export function ChartToolbar({
   canPan,
 }: ChartToolbarProps) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-      <Button type="button" variant="outline" size="sm" onClick={onZoomIn} className="justify-center">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap" aria-label="Chart controls">
+      <Button type="button" variant="outline" size="sm" onClick={onZoomIn} className="min-h-10 justify-center" aria-label="Zoom in">
         <ZoomIn className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Zoom in</span>
+        <span>Zoom in</span>
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onZoomOut} className="justify-center">
+      <Button type="button" variant="outline" size="sm" onClick={onZoomOut} className="min-h-10 justify-center" aria-label="Zoom out">
         <ZoomOut className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Zoom out</span>
+        <span>Zoom out</span>
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onPanLeft} disabled={!canPan} className="justify-center">
+      <Button type="button" variant="outline" size="sm" onClick={onPanLeft} disabled={!canPan} className="min-h-10 justify-center" aria-label="Scroll left">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Scroll left</span>
+        <span>Left</span>
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onPanRight} disabled={!canPan} className="justify-center">
+      <Button type="button" variant="outline" size="sm" onClick={onPanRight} disabled={!canPan} className="min-h-10 justify-center" aria-label="Scroll right">
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Scroll right</span>
+        <span>Right</span>
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={onResetZoom} className="justify-center">
+      <Button type="button" variant="outline" size="sm" onClick={onResetZoom} className="min-h-10 justify-center" aria-label="Reset chart view">
         <RotateCcw className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Reset</span>
+        <span>Reset</span>
       </Button>
       <ActionIconButton action="csv" label="Download CSV" showLabel onClick={onExportCsv} disabled={!canExport} />
-      <Button type="button" variant="outline" size="sm" onClick={onFullscreen} className="justify-center">
+      <Button type="button" variant="outline" size="sm" onClick={onFullscreen} className="min-h-10 justify-center" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
         <Maximize2 className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
+        <span>{isFullscreen ? "Exit" : "Full"}</span>
       </Button>
     </div>
   );

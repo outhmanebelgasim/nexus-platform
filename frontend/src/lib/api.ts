@@ -58,7 +58,7 @@ export function getApiErrorMessage(error: unknown, messages: ApiErrorMessages = 
 
     switch (error.response.status) {
       case 400:
-        return messages.badRequest || "Please check the required fields.";
+        return message || messages.badRequest || "Please check the required fields.";
       case 401:
         return messages.unauthorized || (window.location.pathname === "/login" ? "Invalid email or password." : "Session expired. Please sign in again.");
       case 403:
@@ -67,7 +67,7 @@ export function getApiErrorMessage(error: unknown, messages: ApiErrorMessages = 
         }
         return messages.forbidden || "You do not have permission to perform this action.";
       case 404:
-        return "Requested resource was not found.";
+        return message || "Requested resource was not found.";
       case 409:
         return messages.conflict || "An account with this email already exists.";
       case 500:

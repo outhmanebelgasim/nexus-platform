@@ -22,6 +22,13 @@ interface MeasurementChartProps {
   description?: string;
   yAxisMin?: number;
   yAxisMax?: number;
+  primaryAxisLabel?: string | null;
+  primaryAxisUnit?: string | null;
+  secondaryAxisEnabled?: boolean;
+  secondaryAxisLabel?: string | null;
+  secondaryAxisUnit?: string | null;
+  secondaryAxisMin?: number | null;
+  secondaryAxisMax?: number | null;
   isLoading?: boolean;
   emptyMessage?: string;
   errorMessage?: string;
@@ -34,7 +41,10 @@ interface TooltipState {
   x: number;
   y: number;
   label: string;
-  values: Array<{ label: string; value: number; color: string }>;
+  timestamp: number;
+  values: Array<{ label: string; value: number | null; color: string; unit?: string | null; axis: "PRIMARY" | "SECONDARY" }>;
+  persistent: boolean;
+  dataKey: string;
 }
 
 type NavigatorDrag = { mode: "window" | "start" | "end"; pointerX: number; startPercent: number; endPercent: number };
@@ -62,6 +72,22 @@ function themeColor(token: string) {
   return `hsl(var(${token}))`;
 }
 
+function formatMeasurementValue(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "No value";
+  }
+
+  return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
+}
+
+function safeDateLabel(timestamp: number) {
+  if (!Number.isFinite(timestamp)) {
+    return "Invalid timestamp";
+  }
+
+  return formatDateTime(new Date(timestamp).toISOString());
+}
+
 export function MeasurementChart({
   chartType,
   measurements,
@@ -71,6 +97,13 @@ export function MeasurementChart({
   description,
   yAxisMin,
   yAxisMax,
+  primaryAxisLabel,
+  primaryAxisUnit,
+  secondaryAxisEnabled = false,
+  secondaryAxisLabel,
+  secondaryAxisUnit,
+  secondaryAxisMin,
+  secondaryAxisMax,
   isLoading = false,
   emptyMessage,
   errorMessage,
@@ -86,6 +119,15 @@ export function MeasurementChart({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [navigatorDrag, setNavigatorDrag] = useState<NavigatorDrag | null>(null);
+  const variableById = useMemo(() => new Map(variables.map((variable) => [String(variable.id), variable])), [variables]);
+  const chartDataKey = useMemo(
+    () => [
+      rangeStart ?? "",
+      rangeEnd ?? "",
+      series.map((item) => `${item.id}:${item.axis ?? "PRIMARY"}:${item.chartType ?? ""}:${item.points.length}:${item.points.at(0)?.timestamp ?? ""}:${item.points.at(-1)?.timestamp ?? ""}`).join("|"),
+    ].join("::"),
+    [rangeEnd, rangeStart, series],
+  );
 
   const visibleSeries = useMemo(
     () => series.filter((item) => !hiddenSeries.includes(item.id) && item.points.length > 0),
@@ -97,9 +139,17 @@ export function MeasurementChart({
   const explicitMaxTime = rangeEnd ? new Date(rangeEnd).getTime() : Number.NaN;
   const minTime = Number.isFinite(explicitMinTime) ? explicitMinTime : allPoints.length > 0 ? Math.min(...allPoints.map((point) => point.timestamp)) : 0;
   const maxTime = Number.isFinite(explicitMaxTime) ? explicitMaxTime : allPoints.length > 0 ? Math.max(...allPoints.map((point) => point.timestamp)) : 1;
-  const minValue = typeof yAxisMin === "number" ? yAxisMin : allPoints.length > 0 ? Math.min(...allPoints.map((point) => point.value)) : 0;
-  const maxValue = typeof yAxisMax === "number" ? yAxisMax : allPoints.length > 0 ? Math.max(...allPoints.map((point) => point.value)) : 1;
-  const valueRange = maxValue - minValue || 1;
+  const primarySeries = visibleSeries.filter((item) => item.axis !== "SECONDARY");
+  const secondarySeries = visibleSeries.filter((item) => item.axis === "SECONDARY");
+  const primaryPoints = primarySeries.flatMap((item) => item.points);
+  const secondaryPoints = secondarySeries.flatMap((item) => item.points);
+  const showSecondaryAxis = secondaryAxisEnabled && secondaryPoints.length > 0;
+  const primaryMinValue = typeof yAxisMin === "number" ? yAxisMin : primaryPoints.length > 0 ? Math.min(...primaryPoints.map((point) => point.value)) : 0;
+  const primaryMaxValue = typeof yAxisMax === "number" ? yAxisMax : primaryPoints.length > 0 ? Math.max(...primaryPoints.map((point) => point.value)) : 1;
+  const secondaryMinValue = typeof secondaryAxisMin === "number" ? secondaryAxisMin : secondaryPoints.length > 0 ? Math.min(...secondaryPoints.map((point) => point.value)) : 0;
+  const secondaryMaxValue = typeof secondaryAxisMax === "number" ? secondaryAxisMax : secondaryPoints.length > 0 ? Math.max(...secondaryPoints.map((point) => point.value)) : 1;
+  const primaryValueRange = primaryMaxValue - primaryMinValue || 1;
+  const secondaryValueRange = secondaryMaxValue - secondaryMinValue || 1;
   const timeRange = maxTime - minTime || 1;
   const zoomWindow = timeRange / zoom;
   const maxOffset = maxPanOffset(timeRange, zoom);
@@ -110,23 +160,77 @@ export function MeasurementChart({
   const navigatorStart = timeRange > 0 ? (effectivePanOffset / timeRange) * 100 : 0;
   const navigatorEnd = timeRange > 0 ? ((effectivePanOffset + zoomWindow) / timeRange) * 100 : 100;
   const minimumNavigatorWindow = 100 / 24;
+  const selectableTimestamps = useMemo(
+    () => Array.from(new Set(visibleSeries.flatMap((item) => item.points.map((point) => point.timestamp)).filter(Number.isFinite))).sort((first, second) => first - second),
+    [visibleSeries],
+  );
 
   const xScale = (timestamp: number) =>
     padding.left + ((timestamp - zoomStart) / zoomWindow) * (width - padding.left - padding.right);
-  const yScale = (value: number) =>
-    padding.top + (1 - (value - minValue) / valueRange) * (height - padding.top - padding.bottom);
+  const primaryYScale = (value: number) =>
+    padding.top + (1 - (value - primaryMinValue) / primaryValueRange) * (height - padding.top - padding.bottom);
+  const secondaryYScale = (value: number) =>
+    padding.top + (1 - (value - secondaryMinValue) / secondaryValueRange) * (height - padding.top - padding.bottom);
 
   const chartSeries = visibleSeries.map((item) => ({
     ...item,
     scaledPoints: item.points
       .filter((point) => point.timestamp >= zoomStart && point.timestamp <= zoomEnd)
-      .map((point) => ({ ...point, x: xScale(point.timestamp), y: yScale(point.value) })),
+      .map((point) => ({ ...point, x: xScale(point.timestamp), y: item.axis === "SECONDARY" ? secondaryYScale(point.value) : primaryYScale(point.value) })),
   }));
 
   const handleToggleSeries = (seriesId: string) => {
     setHiddenSeries((current) =>
       current.includes(seriesId) ? current.filter((item) => item !== seriesId) : [...current, seriesId],
     );
+  };
+
+  const activeTooltip = tooltip?.dataKey === chartDataKey ? tooltip : null;
+
+  const selectTimestamp = (timestamp: number, pointerX?: number, persistent = false) => {
+    if (!Number.isFinite(timestamp)) {
+      setTooltip(null);
+      return;
+    }
+
+    const x = typeof pointerX === "number" ? pointerX : xScale(timestamp);
+    const values = chartSeries.map((item) => {
+      const point = item.points.find((currentPoint) => currentPoint.timestamp === timestamp);
+      const variable = variableById.get(item.id);
+      return {
+        label: item.label,
+        value: point?.value ?? null,
+        color: item.color,
+        unit: variable?.unit,
+        axis: item.axis === "SECONDARY" ? "SECONDARY" as const : "PRIMARY" as const,
+      };
+    });
+
+    setTooltip({
+      x: Math.min(Math.max(x, padding.left + 120), width - padding.right - 120),
+      y: padding.top + 24,
+      timestamp,
+      label: safeDateLabel(timestamp),
+      values,
+      persistent,
+      dataKey: chartDataKey,
+    });
+  };
+
+  const selectNearestFromPointer = (event: React.PointerEvent<SVGSVGElement>, persistent = false) => {
+    if (chartSeries.length === 0) {
+      setTooltip(null);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const pointerX = pointerToChartX(event.clientX, rect.left, rect.width, width);
+    const nearest = nearestTimestamp(chartSeries.flatMap((item) => item.scaledPoints), pointerX);
+    if (!nearest) {
+      setTooltip(null);
+      return;
+    }
+    selectTimestamp(nearest.timestamp, pointerX, persistent);
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -139,40 +243,7 @@ export function MeasurementChart({
       return;
     }
 
-    if (chartSeries.length === 0) {
-      setTooltip(null);
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const pointerX = pointerToChartX(event.clientX, rect.left, rect.width, width);
-    const nearest = nearestTimestamp(chartSeries.flatMap((item) => item.scaledPoints), pointerX);
-
-    if (!nearest) {
-      setTooltip(null);
-      return;
-    }
-
-    const values = chartSeries
-      .map((item) => {
-        const point = item.points.reduce<{ distance: number; value: number } | null>((closest, currentPoint) => {
-          const distance = Math.abs(currentPoint.timestamp - nearest.timestamp);
-          if (!closest || distance < closest.distance) {
-            return { distance, value: currentPoint.value };
-          }
-          return closest;
-        }, null);
-
-        return point ? { label: item.label, value: point.value, color: item.color } : null;
-      })
-      .filter((item): item is { label: string; value: number; color: string } => item !== null);
-
-    setTooltip({
-      x: Math.min(Math.max(pointerX, padding.left + 120), width - padding.right - 120),
-      y: padding.top + 24,
-      label: formatDateTime(new Date(nearest.timestamp).toISOString()),
-      values,
-    });
+    selectNearestFromPointer(event, event.pointerType !== "mouse");
   };
 
   const exportCsv = () => {
@@ -236,6 +307,32 @@ export function MeasurementChart({
             <span className="tabular-nums text-muted-foreground">{visibleRangeLabel}</span>
           </div>
         ) : null}
+        {hasRenderableData && activeTooltip?.persistent ? (
+          <div className="rounded-md border bg-muted/30 p-3 text-sm" aria-live="polite">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-medium text-foreground">Selected measurement</p>
+                <p className="tabular-nums text-muted-foreground">{activeTooltip.label}</p>
+              </div>
+              <button type="button" className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setTooltip(null)}>
+                Clear
+              </button>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {activeTooltip.values.map((item) => (
+                <div key={`${item.label}-${item.axis}`} className="min-w-0 rounded-md bg-background p-2">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="truncate font-medium text-foreground">{item.label}</span>
+                  </div>
+                  <p className="mt-1 tabular-nums text-muted-foreground">
+                    {formatMeasurementValue(item.value)}{item.value !== null && item.unit ? ` ${item.unit}` : ""} <span className="text-xs">({item.axis === "SECONDARY" ? "right axis" : "left axis"})</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {isLoading ? (
           <LoadingState rows={3} rowClassName="h-20" />
         ) : !errorMessage && series.length === 0 ? (
@@ -245,11 +342,25 @@ export function MeasurementChart({
           <div className={cn("relative overflow-hidden rounded-md border bg-card p-2", canPan ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair")}>
             <svg
               ref={svgRef}
-              className="aspect-[16/9] min-h-[260px] w-full touch-none sm:min-h-[340px] lg:min-h-[420px]"
+              className="aspect-[4/3] min-h-[300px] w-full touch-none outline-none sm:aspect-[16/9] sm:min-h-[340px] lg:min-h-[420px]"
               role="img"
-              aria-label="Generated measurements analytics chart"
+              aria-label={`${title}. Use pointer movement or arrow keys to inspect measurement values.`}
+              tabIndex={0}
               viewBox={`0 0 ${width} ${height}`}
               onPointerMove={handlePointerMove}
+              onKeyDown={(event) => {
+                if (selectableTimestamps.length === 0 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) {
+                  return;
+                }
+                event.preventDefault();
+                const currentIndex = activeTooltip ? selectableTimestamps.findIndex((timestamp) => timestamp === activeTooltip.timestamp) : -1;
+                const fallbackIndex = event.key === "ArrowRight" ? 0 : selectableTimestamps.length - 1;
+                const nextIndex =
+                  currentIndex === -1
+                    ? fallbackIndex
+                    : Math.min(Math.max(currentIndex + (event.key === "ArrowRight" ? 1 : -1), 0), selectableTimestamps.length - 1);
+                selectTimestamp(selectableTimestamps[nextIndex], undefined, true);
+              }}
               onWheel={(event) => {
                 if (chartSeries.length === 0) {
                   return;
@@ -263,7 +374,8 @@ export function MeasurementChart({
                 setPanOffset(viewport.panOffset);
               }}
               onPointerDown={(event) => {
-                if (zoom > 1) {
+                selectNearestFromPointer(event, event.pointerType !== "mouse");
+                if (zoom > 1 && event.pointerType === "mouse") {
                   event.currentTarget.setPointerCapture(event.pointerId);
                   setPanStart(event.clientX);
                 }
@@ -275,14 +387,16 @@ export function MeasurementChart({
                 setPanStart(null);
               }}
               onPointerLeave={() => {
-                setTooltip(null);
+                if (!activeTooltip?.persistent) {
+                  setTooltip(null);
+                }
                 setPanStart(null);
               }}
             >
             <rect width={width} height={height} fill={themeColor("--card")} />
             {Array.from({ length: 5 }).map((_, index) => {
               const y = padding.top + (index / 4) * (height - padding.top - padding.bottom);
-              const value = maxValue - (index / 4) * valueRange;
+              const value = primaryMaxValue - (index / 4) * primaryValueRange;
               return (
                 <g key={index}>
                   <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke={themeColor("--border")} />
@@ -292,7 +406,19 @@ export function MeasurementChart({
                 </g>
               );
             })}
+            {showSecondaryAxis
+              ? Array.from({ length: 5 }).map((_, index) => {
+                  const y = padding.top + (index / 4) * (height - padding.top - padding.bottom);
+                  const value = secondaryMaxValue - (index / 4) * secondaryValueRange;
+                  return (
+                    <text key={index} x={width - padding.right + 12} y={y + 4} textAnchor="start" fontSize="12" fill={themeColor("--muted-foreground")}>
+                      {value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                    </text>
+                  );
+                })
+              : null}
             <line x1={padding.left} x2={padding.left} y1={padding.top} y2={height - padding.bottom} stroke={themeColor("--border")} />
+            {showSecondaryAxis ? <line x1={width - padding.right} x2={width - padding.right} y1={padding.top} y2={height - padding.bottom} stroke={themeColor("--border")} /> : null}
             <line
               x1={padding.left}
               x2={width - padding.right}
@@ -319,7 +445,9 @@ export function MeasurementChart({
                 return null;
               }
 
-              if (chartType === "bar") {
+              const seriesChartType = item.chartType === "BAR" || chartType === "bar" ? "bar" : "line";
+
+              if (seriesChartType === "bar") {
                 const barWidth = Math.max(4, Math.min(18, (width - padding.left - padding.right) / item.scaledPoints.length / 2));
                 return (
                   <g key={item.id}>
@@ -363,22 +491,30 @@ export function MeasurementChart({
               );
             })}
 
-            {tooltip ? (
+            {activeTooltip && !activeTooltip.persistent ? (
               <g>
-                <line x1={tooltip.x} x2={tooltip.x} y1={padding.top} y2={height - padding.bottom} stroke={themeColor("--muted-foreground")} strokeDasharray="4 4" opacity="0.8" />
-                <rect x={tooltip.x - 118} y={tooltip.y} width="236" height={56 + tooltip.values.length * 18} rx="8" fill={themeColor("--foreground")} opacity="0.94" />
-                <text x={tooltip.x - 102} y={tooltip.y + 24} fontSize="12" fill={themeColor("--background")}>
-                  {tooltip.label}
+                <line x1={activeTooltip.x} x2={activeTooltip.x} y1={padding.top} y2={height - padding.bottom} stroke={themeColor("--muted-foreground")} strokeDasharray="4 4" opacity="0.8" />
+                <rect x={activeTooltip.x - 118} y={activeTooltip.y} width="236" height={56 + activeTooltip.values.length * 18} rx="8" fill={themeColor("--foreground")} opacity="0.94" />
+                <text x={activeTooltip.x - 102} y={activeTooltip.y + 24} fontSize="12" fill={themeColor("--background")}>
+                  {activeTooltip.label}
                 </text>
-                {tooltip.values.map((item, index) => (
+                {activeTooltip.values.map((item, index) => (
                   <g key={item.label}>
-                    <circle cx={tooltip.x - 96} cy={tooltip.y + 48 + index * 18} r="4" fill={item.color} />
-                    <text x={tooltip.x - 86} y={tooltip.y + 52 + index * 18} fontSize="12" fill={themeColor("--background")}>
-                      {item.label}: {item.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    <circle cx={activeTooltip.x - 96} cy={activeTooltip.y + 48 + index * 18} r="4" fill={item.color} />
+                    <text x={activeTooltip.x - 86} y={activeTooltip.y + 52 + index * 18} fontSize="12" fill={themeColor("--background")}>
+                      {item.label}: {formatMeasurementValue(item.value)}{item.value !== null && item.unit ? ` ${item.unit}` : ""}
                     </text>
                   </g>
                 ))}
               </g>
+            ) : null}
+            <text x={padding.left} y={16} fontSize="12" fill={themeColor("--muted-foreground")}>
+              {[primaryAxisLabel, primaryAxisUnit ? `(${primaryAxisUnit})` : null].filter(Boolean).join(" ")}
+            </text>
+            {showSecondaryAxis ? (
+              <text x={width - padding.right} y={16} textAnchor="end" fontSize="12" fill={themeColor("--muted-foreground")}>
+                {[secondaryAxisLabel, secondaryAxisUnit ? `(${secondaryAxisUnit})` : null].filter(Boolean).join(" ")}
+              </text>
             ) : null}
             </svg>
           </div>

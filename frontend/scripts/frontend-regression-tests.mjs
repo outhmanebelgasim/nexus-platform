@@ -32,15 +32,25 @@ assert.match(restrictedPage, /No active graphs have been assigned\./, "empty gra
 assert.doesNotMatch(restrictedPage, /Request failed with status code/, "raw Axios errors must not be rendered");
 
 assert.match(usersPage, /graphStationId/, "graph assignment must require a selected station context");
-assert.match(usersPage, /stationId: validGraphStationId/, "assigned graph payload must contain stationId");
+assert.match(usersPage, /const stationId = validGraphStationId \?\? 0/, "assigned graph payload must normalize a validated stationId");
+assert.match(usersPage, /stationId,/, "assigned graph payload must contain stationId");
 assert.match(usersPage, /variableId/, "assigned graph payload must contain station-specific variable IDs");
 assert.match(usersPage, /filterVariablesForGraphStation/, "graph variables must be filtered by selected station");
 assert.match(usersPage, /validGraphVariableIds/, "station changes must preserve only valid selected variables");
 assert.match(usersPage, /Select a station before choosing graph variables/, "variable selector must be disabled until a station is selected");
+assert.match(usersPage, /Password reset/, "edit user modal must expose an administrative password reset section");
+assert.match(usersPage, /userService\.resetPassword/, "valid admin password reset must call the dedicated endpoint");
+assert.match(usersPage, /newPassword: ""/, "password reset fields must be clearable and optional");
+assert.doesNotMatch(usersPage, /\.\.\.\(formMode === "edit" \? \{ password:/, "edit user payload must not include password");
+assert.match(read("src/services/userService.ts"), /\/password`, payload\)/, "user service must call a dedicated password endpoint");
 
 assert.match(chart, /onWheel/, "chart must support mouse wheel and trackpad zoom");
 assert.match(chart, /setPointerCapture/, "chart must support drag panning");
 assert.match(chart, /strokeDasharray="4 4"/, "chart must render a crosshair while tracking the cursor");
+assert.match(chart, /Selected measurement/, "chart must expose a persistent selected-measurement panel");
+assert.match(chart, /selectNearestFromPointer/, "chart must support touch and pointer selection");
+assert.match(chart, /onKeyDown/, "chart must support keyboard timestamp navigation");
+assert.match(chart, /No value/, "chart must not convert missing series values to zero");
 assert.match(chart, /Timeline navigator/, "chart must render a visible timeline navigator");
 assert.match(chart, /Visible range/, "chart must display the active date range");
 assert.match(chart, /rangeStart/, "chart must accept explicit backend range start metadata");
@@ -50,7 +60,7 @@ assert.match(chart, /csvModeLabel/, "CSV export must expose raw or aggregated ex
 assert.match(chart, /hasRenderableData/, "chart must not render epoch axes when data failed or is empty");
 assert.doesNotMatch(chart, /series\.length > 0 \? \([\s\S]*Visible range/, "visible range must not be shown from empty series alone");
 assert.match(chart, /Resize \$\{mode\} of visible range/, "timeline navigator must expose resizable range handles");
-assert.match(chart, /aspect-\[16\/9\]/, "chart must use a responsive aspect ratio");
+assert.match(chart, /aspect-\[4\/3\]/, "chart must use a mobile-friendly responsive aspect ratio");
 assert.match(toolbar, /Scroll left/, "toolbar must include horizontal pan left control");
 assert.match(toolbar, /Scroll right/, "toolbar must include horizontal pan right control");
 
