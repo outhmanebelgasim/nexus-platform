@@ -18,6 +18,13 @@ public record UserGraphConfigurationRequest(
         @NotNull StationCategory stationCategory,
         @NotNull BigDecimal yAxisMin,
         @NotNull BigDecimal yAxisMax,
+        String primaryAxisLabel,
+        String primaryAxisUnit,
+        boolean secondaryAxisEnabled,
+        String secondaryAxisLabel,
+        String secondaryAxisUnit,
+        BigDecimal secondaryAxisMin,
+        BigDecimal secondaryAxisMax,
         @NotNull Integer displayOrder,
         boolean active,
         @NotEmpty List<@Valid UserGraphVariableRequest> variables

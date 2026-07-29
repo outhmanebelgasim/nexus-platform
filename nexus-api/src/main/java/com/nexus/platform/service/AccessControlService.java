@@ -212,11 +212,17 @@ public class AccessControlService {
             List<MeasurementVariable> variables
     ) {
         Set<Long> scopedStationIds = requestedStationIds.stream().collect(Collectors.toSet());
+        if (scopedStationIds.isEmpty() && !requestedFarmIds.isEmpty()) {
+            stationRepository.findAll().stream()
+                    .filter(station -> station.getFarm() != null && requestedFarmIds.contains(station.getFarm().getId()))
+                    .map(Station::getId)
+                    .forEach(scopedStationIds::add);
+        }
 
         boolean outsideScope = variables.stream()
                 .anyMatch(variable -> variable.getStation() == null || !scopedStationIds.contains(variable.getStation().getId()));
         if (outsideScope) {
-            throw new AccessDeniedException("Measurement variable access must belong to the selected station scope");
+            throw new IllegalArgumentException("Measurement variable access must belong to the selected station scope");
         }
     }
 

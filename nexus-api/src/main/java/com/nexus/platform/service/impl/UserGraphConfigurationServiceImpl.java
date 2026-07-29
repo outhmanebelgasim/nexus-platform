@@ -5,12 +5,15 @@ import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.domain.entity.Station;
 import com.nexus.domain.entity.UserGraphConfiguration;
 import com.nexus.domain.entity.UserGraphVariable;
+import com.nexus.domain.enums.GraphAxis;
+import com.nexus.domain.enums.MeasurementQuality;
 import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.StationCategory;
 import com.nexus.platform.dto.graph.RestrictedGraphMeasurementResponse;
 import com.nexus.platform.dto.graph.UserGraphConfigurationRequest;
 import com.nexus.platform.dto.graph.UserGraphConfigurationResponse;
 import com.nexus.platform.dto.graph.UserGraphVariableResponse;
+import com.nexus.platform.dto.measurement.MeasurementResponse;
 import com.nexus.platform.dto.station.StationResponse;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.MeasurementMapper;
@@ -28,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -42,7 +46,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class UserGraphConfigurationServiceImpl implements UserGraphConfigurationService {
 
-    private static final int ALL_TIME_RAW_POINT_LIMIT = 5000;
     private static final Set<Role> RESTRICTED_ROLES = Set.of(Role.TECHNICIAN, Role.VIEWER);
 
     private final UserGraphConfigurationRepository graphRepository;
@@ -94,6 +97,13 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
                 .stationCategory(request.stationCategory())
                 .yAxisMin(request.yAxisMin())
                 .yAxisMax(request.yAxisMax())
+                .primaryAxisLabel(trimToNull(request.primaryAxisLabel()))
+                .primaryAxisUnit(trimToNull(request.primaryAxisUnit()))
+                .secondaryAxisEnabled(request.secondaryAxisEnabled())
+                .secondaryAxisLabel(trimToNull(request.secondaryAxisLabel()))
+                .secondaryAxisUnit(trimToNull(request.secondaryAxisUnit()))
+                .secondaryAxisMin(request.secondaryAxisMin())
+                .secondaryAxisMax(request.secondaryAxisMax())
                 .displayOrder(request.displayOrder())
                 .active(request.active())
                 .createdAt(Instant.now())
@@ -119,6 +129,13 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
         graph.setStationCategory(request.stationCategory());
         graph.setYAxisMin(request.yAxisMin());
         graph.setYAxisMax(request.yAxisMax());
+        graph.setPrimaryAxisLabel(trimToNull(request.primaryAxisLabel()));
+        graph.setPrimaryAxisUnit(trimToNull(request.primaryAxisUnit()));
+        graph.setSecondaryAxisEnabled(request.secondaryAxisEnabled());
+        graph.setSecondaryAxisLabel(trimToNull(request.secondaryAxisLabel()));
+        graph.setSecondaryAxisUnit(trimToNull(request.secondaryAxisUnit()));
+        graph.setSecondaryAxisMin(request.secondaryAxisMin());
+        graph.setSecondaryAxisMax(request.secondaryAxisMax());
         graph.setDisplayOrder(request.displayOrder());
         graph.setActive(request.active());
         graph.setUpdatedAt(Instant.now());
@@ -235,38 +252,105 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
                     MeasurementVariableMapper.toResponseList(variables),
                     List.of(),
                     false,
-                    "One or more configured variables do not exist for the selected station."
+                    "One or more configured variables do not exist for the selected station.",
+                    null,
+                    null,
+                    null
             );
         }
         List<Long> variableIds = variables.stream().map(MeasurementVariable::getId).toList();
         String normalizedRange = range == null ? "LAST_MONTH" : range.trim().toUpperCase(Locale.ROOT);
-        boolean aggregated = false;
-        String note = null;
-        var measurements = switch (normalizedRange) {
-            case "ALL_TIME" -> {
-                var limited = measurementRepository.findTop5000ByMeasurementVariableStationIdAndMeasurementVariableIdInOrderByIdMeasuredAtAsc(stationId, variableIds);
-                if (limited.size() >= ALL_TIME_RAW_POINT_LIMIT) {
-                    aggregated = true;
-                    note = "All Time is limited to the first 5,000 raw points until server-side TimescaleDB bucketing is enabled.";
-                }
-                yield limited;
-            }
-            case "LAST_MONTH" -> measurementRepository.findByMeasurementVariableStationIdAndMeasurementVariableIdInAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
-                    stationId,
-                    variableIds,
-                    Instant.now().minus(30, ChronoUnit.DAYS),
-                    Instant.now()
-            );
+        GraphMeasurementPayload payload = switch (normalizedRange) {
+            case "ALL_TIME" -> allTimeMeasurements(stationId, variableIds);
+            case "LAST_MONTH" -> lastMonthMeasurements(stationId, variableIds);
             default -> throw new IllegalArgumentException("Unsupported graph range");
         };
 
         return new RestrictedGraphMeasurementResponse(
                 toResponse(graph, variables),
                 MeasurementVariableMapper.toResponseList(variables),
-                MeasurementMapper.toResponseList(measurements),
-                aggregated,
-                note
+                payload.measurements(),
+                payload.aggregated(),
+                payload.note(),
+                payload.firstMeasuredAt(),
+                payload.lastMeasuredAt(),
+                payload.bucketInterval()
         );
+    }
+
+    private GraphMeasurementPayload lastMonthMeasurements(Long stationId, List<Long> variableIds) {
+        Instant end = Instant.now();
+        Instant start = end.minus(30, ChronoUnit.DAYS);
+        var measurements = measurementRepository.findByMeasurementVariableStationIdAndMeasurementVariableIdInAndIdMeasuredAtBetweenOrderByIdMeasuredAtAsc(
+                stationId,
+                variableIds,
+                start,
+                end
+        );
+        var responses = MeasurementMapper.toResponseList(measurements);
+        return new GraphMeasurementPayload(
+                responses,
+                false,
+                null,
+                responses.isEmpty() ? null : responses.getFirst().measuredAt(),
+                responses.isEmpty() ? null : responses.getLast().measuredAt(),
+                null
+        );
+    }
+
+    private GraphMeasurementPayload allTimeMeasurements(Long stationId, List<Long> variableIds) {
+        var range = measurementRepository.findGraphMeasurementRange(stationId, variableIds);
+        if (range == null || range.getFirstMeasuredAt() == null || range.getLastMeasuredAt() == null) {
+            return new GraphMeasurementPayload(List.of(), true, "All-time data is aggregated for performance.", null, null, null);
+        }
+
+        String bucketInterval = bucketIntervalFor(range.getFirstMeasuredAt(), range.getLastMeasuredAt());
+        var measurements = measurementRepository.findBucketedGraphMeasurements(
+                stationId,
+                variableIds,
+                range.getFirstMeasuredAt(),
+                range.getLastMeasuredAt(),
+                bucketInterval
+        ).stream()
+                .map(measurement -> new MeasurementResponse(
+                        measurement.getMeasuredAt(),
+                        measurement.getVariableId(),
+                        measurement.getNumericValue(),
+                        null,
+                        MeasurementQuality.VALID,
+                        null,
+                        null
+                ))
+                .toList();
+
+        return new GraphMeasurementPayload(
+                measurements,
+                true,
+                "All-time data is aggregated for performance.",
+                range.getFirstMeasuredAt(),
+                range.getLastMeasuredAt(),
+                bucketInterval
+        );
+    }
+
+    String bucketIntervalFor(Instant firstMeasuredAt, Instant lastMeasuredAt) {
+        long days = Math.max(0, Duration.between(firstMeasuredAt, lastMeasuredAt).toDays());
+        if (days <= 14) {
+            return "30 minutes";
+        }
+        if (days <= 30) {
+            return "1 hour";
+        }
+        if (days <= 180) {
+            return "6 hours";
+        }
+        if (days <= 365) {
+            return "12 hours";
+        }
+        if (days <= 365 * 3L) {
+            return "1 day";
+        }
+        return "7 days";
     }
 
     private void validateRequest(AppUser actor, AppUser target, UserGraphConfigurationRequest request) {
@@ -274,7 +358,20 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
             throw new IllegalArgumentException("Graph configurations can only be assigned to technicians or viewers");
         }
         if (request.yAxisMax().compareTo(request.yAxisMin()) <= 0) {
-            throw new IllegalArgumentException("Y-axis maximum must be greater than minimum");
+            throw new IllegalArgumentException("Primary Y-axis maximum must be greater than minimum");
+        }
+        boolean usesSecondaryAxis = request.variables().stream().anyMatch(variable -> variable.axis() == GraphAxis.SECONDARY);
+        if (usesSecondaryAxis && !request.secondaryAxisEnabled()) {
+            throw new IllegalArgumentException("Secondary axis must be enabled when a variable uses it");
+        }
+        if (!usesSecondaryAxis && request.secondaryAxisEnabled()) {
+            throw new IllegalArgumentException("Secondary axis must have at least one variable");
+        }
+        if ((request.secondaryAxisMin() == null) != (request.secondaryAxisMax() == null)) {
+            throw new IllegalArgumentException("Secondary Y-axis minimum and maximum must be provided together");
+        }
+        if (request.secondaryAxisMin() != null && request.secondaryAxisMax().compareTo(request.secondaryAxisMin()) <= 0) {
+            throw new IllegalArgumentException("Secondary Y-axis maximum must be greater than minimum");
         }
         if (request.displayOrder() == null || request.displayOrder() < 1) {
             throw new IllegalArgumentException("Display order must be greater than zero");
@@ -284,8 +381,8 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
         if (station.getStationCategory() != request.stationCategory()) {
             throw new IllegalArgumentException("Graph category must match the selected station category");
         }
-        if (actor.getRole() != Role.SUPER_ADMIN && target.getStations().stream().noneMatch(assignedStation -> assignedStation.getId().equals(station.getId()))) {
-            throw new AccessDeniedException("Target user must be explicitly assigned to the graph station");
+        if (!effectiveStationIds(target).contains(station.getId())) {
+            throw new IllegalArgumentException("Station " + station.getCode() + " is not assigned to the target user");
         }
         if (actor.getRole() == Role.ADMIN) {
             accessControlService.ensureStationAccess(actor, station.getId());
@@ -297,15 +394,27 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
         if (variableIds.size() != request.variables().size()) {
             throw new IllegalArgumentException("Graph variables must use station-specific measurement variable IDs");
         }
+        if (request.variables().stream().anyMatch(variable -> variable.axis() == null || variable.chartType() == null)) {
+            throw new IllegalArgumentException("Each graph variable must have an axis and chart type");
+        }
+        if (request.variables().stream().anyMatch(variable -> variable.displayOrder() == null || variable.displayOrder() < 1)) {
+            throw new IllegalArgumentException("Graph variable display order must be greater than zero");
+        }
         if (variableIds.size() != new LinkedHashSet<>(variableIds).size()) {
             throw new IllegalArgumentException("Graph variables must be unique");
         }
         List<MeasurementVariable> variables = measurementVariableRepository.findByStationIdAndIdIn(station.getId(), variableIds);
         if (variables.size() != variableIds.size()) {
-            throw new IllegalArgumentException("Graph variables must belong to the selected station");
+            throw new IllegalArgumentException("One or more graph variables do not belong to station " + station.getCode());
         }
         if (variables.stream().anyMatch(variable -> !variable.isActive())) {
             throw new IllegalArgumentException("Graph variables must be active");
+        }
+        Set<Long> targetVariableIds = target.getMeasurementVariables().stream()
+                .map(MeasurementVariable::getId)
+                .collect(Collectors.toSet());
+        if (!targetVariableIds.containsAll(variableIds)) {
+            throw new IllegalArgumentException("Graph variables must be included in the target user's Chart Access selection");
         }
         if (actor.getRole() == Role.ADMIN && variables.stream().anyMatch(variable -> !accessControlService.canAccessMeasurementVariable(actor, variable))) {
             throw new AccessDeniedException("You cannot assign graph variables outside your own scope");
@@ -320,6 +429,9 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
                     .graphConfiguration(graph)
                     .measurementVariable(variable)
                     .variableCode(variableRequest.variableCode() == null ? variable.getCode() : normalizeCode(variableRequest.variableCode()))
+                    .axis(variableRequest.axis())
+                    .chartType(variableRequest.chartType())
+                    .customLabel(trimToNull(variableRequest.customLabel()))
                     .displayOrder(variableRequest.displayOrder())
                     .build());
         });
@@ -342,6 +454,13 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
                 graph.getStationCategory(),
                 graph.getYAxisMin(),
                 graph.getYAxisMax(),
+                graph.getPrimaryAxisLabel(),
+                graph.getPrimaryAxisUnit(),
+                graph.isSecondaryAxisEnabled(),
+                graph.getSecondaryAxisLabel(),
+                graph.getSecondaryAxisUnit(),
+                graph.getSecondaryAxisMin(),
+                graph.getSecondaryAxisMax(),
                 graph.getDisplayOrder(),
                 graph.isActive(),
                 graph.getCreatedAt(),
@@ -356,7 +475,10 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
                                     variable.getVariableCode(),
                                     resolved == null ? null : resolved.getDisplayName(),
                                     resolved == null ? null : resolved.getUnit(),
-                                    variable.getDisplayOrder()
+                                    variable.getAxis(),
+                                    variable.getChartType(),
+                                    variable.getDisplayOrder(),
+                                    variable.getCustomLabel()
                             );
                         })
                         .toList()
@@ -372,6 +494,21 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
         }
     }
 
+    private Set<Long> effectiveStationIds(AppUser target) {
+        Set<Long> explicitStationIds = target.getStations().stream()
+                .map(Station::getId)
+                .collect(Collectors.toSet());
+        if (!explicitStationIds.isEmpty()) {
+            return explicitStationIds;
+        }
+        return target.getFarms().stream()
+                .filter(farm -> farm != null)
+                .flatMap(farm -> stationRepository.findAll().stream()
+                        .filter(station -> station.getFarm() != null && station.getFarm().getId().equals(farm.getId()))
+                        .map(Station::getId))
+                .collect(Collectors.toSet());
+    }
+
     private AppUser findUser(Long userId) {
         return userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
     }
@@ -385,5 +522,15 @@ public class UserGraphConfigurationServiceImpl implements UserGraphConfiguration
             return null;
         }
         return value.trim();
+    }
+
+    private record GraphMeasurementPayload(
+            List<MeasurementResponse> measurements,
+            boolean aggregated,
+            String note,
+            Instant firstMeasuredAt,
+            Instant lastMeasuredAt,
+            String bucketInterval
+    ) {
     }
 }

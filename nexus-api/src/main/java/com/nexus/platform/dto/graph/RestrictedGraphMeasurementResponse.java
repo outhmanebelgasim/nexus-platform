@@ -3,6 +3,7 @@ package com.nexus.platform.dto.graph;
 import com.nexus.platform.dto.measurement.MeasurementResponse;
 import com.nexus.platform.dto.measurementvariable.MeasurementVariableResponse;
 
+import java.time.Instant;
 import java.util.List;
 
 public record RestrictedGraphMeasurementResponse(
@@ -10,6 +11,9 @@ public record RestrictedGraphMeasurementResponse(
         List<MeasurementVariableResponse> variables,
         List<MeasurementResponse> measurements,
         boolean aggregated,
-        String aggregationNote
+        String aggregationNote,
+        Instant firstMeasuredAt,
+        Instant lastMeasuredAt,
+        String bucketInterval
 ) {
 }

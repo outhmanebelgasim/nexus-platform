@@ -4,6 +4,8 @@ import com.nexus.domain.entity.AppUser;
 import com.nexus.domain.entity.MeasurementVariable;
 import com.nexus.domain.entity.Station;
 import com.nexus.domain.entity.UserGraphConfiguration;
+import com.nexus.domain.enums.GraphAxis;
+import com.nexus.domain.enums.GraphSeriesType;
 import com.nexus.domain.entity.UserGraphVariable;
 import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.StationCategory;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -30,8 +33,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,6 +75,7 @@ class UserGraphConfigurationServiceImplTest {
         Station station = station(17L, "ET0_YAZID", StationCategory.METEO);
         MeasurementVariable variable = variable(101L, station, "Cumul_Et0");
         viewer.getStations().add(station);
+        viewer.getMeasurementVariables().add(variable);
 
         when(accessControlService.findUserByEmail(admin.getEmail())).thenReturn(admin);
         when(userRepository.findById(viewer.getId())).thenReturn(Optional.of(viewer));
@@ -90,6 +94,49 @@ class UserGraphConfigurationServiceImplTest {
     }
 
     @Test
+    void createAcceptsZeroMinimumValuesForSecondaryAxisGraph() {
+        AppUser superAdmin = user(Role.SUPER_ADMIN, 1L, "super@nexus.local");
+        AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
+        Station station = station(17L, "MTO_LOUNASDA", StationCategory.METEO);
+        MeasurementVariable variable = variable(101L, station, "BATT_AVG");
+        technician.getStations().add(station);
+        technician.getMeasurementVariables().add(variable);
+        UserGraphConfigurationRequest request = new UserGraphConfigurationRequest(
+                "Battery",
+                null,
+                station.getId(),
+                station.getStationCategory(),
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(100),
+                "Battery",
+                "V",
+                true,
+                "Consumption",
+                "A",
+                BigDecimal.ZERO,
+                BigDecimal.valueOf(10),
+                1,
+                true,
+                List.of(new UserGraphVariableRequest(variable.getId(), variable.getCode(), GraphAxis.SECONDARY, GraphSeriesType.BAR, 2, null))
+        );
+
+        when(accessControlService.findUserByEmail(superAdmin.getEmail())).thenReturn(superAdmin);
+        when(userRepository.findById(technician.getId())).thenReturn(Optional.of(technician));
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+        when(stationRepository.getReferenceById(station.getId())).thenReturn(station);
+        when(measurementVariableRepository.findByStationIdAndIdIn(station.getId(), List.of(variable.getId()))).thenReturn(List.of(variable));
+        when(measurementVariableRepository.getReferenceById(variable.getId())).thenReturn(variable);
+        doAnswer(invocation -> invocation.getArgument(0)).when(graphRepository).save(any(UserGraphConfiguration.class));
+
+        var response = service.create(technician.getId(), request, superAdmin.getEmail());
+
+        assertThat(response.yAxisMin()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.secondaryAxisMin()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(response.variables()).extracting("chartType").containsExactly(GraphSeriesType.BAR);
+        assertThat(response.variables()).extracting("displayOrder").containsExactly(2);
+    }
+
+    @Test
     void createRejectsVariableFromAnotherStation() {
         AppUser admin = user(Role.SUPER_ADMIN, 1L, "admin@nexus.local");
         AppUser viewer = user();
@@ -105,15 +152,17 @@ class UserGraphConfigurationServiceImplTest {
 
         assertThatThrownBy(() -> service.create(viewer.getId(), request(selectedStation, otherVariable), admin.getEmail()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Graph variables must belong to the selected station");
+                .hasMessage("One or more graph variables do not belong to station ET0_YAZID");
     }
 
     @Test
-    void superAdminCanCreateTechnicianGraphBeforeTargetStationAssignmentIsPersisted() {
+    void superAdminCanCreateTechnicianGraphAfterTargetAccessContainsStationAndVariable() {
         AppUser superAdmin = user(Role.SUPER_ADMIN, 1L, "super@nexus.local");
         AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
         Station station = station(17L, "ET0_YAZID", StationCategory.METEO);
         MeasurementVariable variable = variable(101L, station, "Cumul_Et0");
+        technician.getStations().add(station);
+        technician.getMeasurementVariables().add(variable);
 
         when(accessControlService.findUserByEmail(superAdmin.getEmail())).thenReturn(superAdmin);
         when(userRepository.findById(technician.getId())).thenReturn(Optional.of(technician));
@@ -130,7 +179,7 @@ class UserGraphConfigurationServiceImplTest {
     }
 
     @Test
-    void adminCannotCreateTechnicianGraphOutsideTargetStationAssignments() {
+    void graphRejectsStationOutsideTargetAssignmentsAsValidationError() {
         AppUser admin = user(Role.ADMIN, 1L, "admin@nexus.local");
         AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
         Station station = station(17L, "ET0_YAZID", StationCategory.METEO);
@@ -141,8 +190,26 @@ class UserGraphConfigurationServiceImplTest {
         when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
 
         assertThatThrownBy(() -> service.create(technician.getId(), request(station, variable), admin.getEmail()))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessage("Target user must be explicitly assigned to the graph station");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Station ET0_YAZID is not assigned to the target user");
+    }
+
+    @Test
+    void graphRejectsVariableNotIncludedInTargetChartAccessAsValidationError() {
+        AppUser superAdmin = user(Role.SUPER_ADMIN, 1L, "super@nexus.local");
+        AppUser technician = user(Role.TECHNICIAN, 9L, "technician@nexus.local");
+        Station station = station(17L, "FOS_YAZID", StationCategory.FOS);
+        MeasurementVariable variable = variable(101L, station, "Vbat");
+        technician.getStations().add(station);
+
+        when(accessControlService.findUserByEmail(superAdmin.getEmail())).thenReturn(superAdmin);
+        when(userRepository.findById(technician.getId())).thenReturn(Optional.of(technician));
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+        when(measurementVariableRepository.findByStationIdAndIdIn(station.getId(), List.of(variable.getId()))).thenReturn(List.of(variable));
+
+        assertThatThrownBy(() -> service.create(technician.getId(), request(station, variable), superAdmin.getEmail()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Graph variables must be included in the target user's Chart Access selection");
     }
 
     @Test
@@ -205,6 +272,100 @@ class UserGraphConfigurationServiceImplTest {
         );
     }
 
+    @Test
+    void allTimeUsesRangeMetadataAndBucketedMeasurementsWithoutTruncatingLatestPeriod() {
+        AppUser viewer = user();
+        Station station = station(17L, "MTO_LOUNASDA", StationCategory.METEO);
+        MeasurementVariable temperature = variable(101L, station, "Temperature");
+        MeasurementVariable humidity = variable(102L, station, "Humidity");
+        UserGraphConfiguration graph = graph(viewer);
+        graph.setStation(station);
+        viewer.getStations().add(station);
+        Instant firstMeasuredAt = Instant.parse("2026-04-29T00:00:00Z");
+        Instant rowFiveThousandAt = Instant.parse("2026-05-25T00:00:00Z");
+        Instant lastMeasuredAt = Instant.parse("2026-07-28T12:00:00Z");
+
+        when(accessControlService.findUserByEmail(viewer.getEmail())).thenReturn(viewer);
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+        when(graphRepository.findByIdAndUserIdAndStationId(graph.getId(), viewer.getId(), station.getId())).thenReturn(Optional.of(graph));
+        when(measurementVariableRepository.findByStationIdAndIdIn(station.getId(), List.of(101L, 102L))).thenReturn(List.of(temperature, humidity));
+        when(measurementRepository.findGraphMeasurementRange(station.getId(), List.of(temperature.getId(), humidity.getId())))
+                .thenReturn(range(firstMeasuredAt, lastMeasuredAt));
+        when(measurementRepository.findBucketedGraphMeasurements(
+                station.getId(),
+                List.of(temperature.getId(), humidity.getId()),
+                firstMeasuredAt,
+                lastMeasuredAt,
+                "6 hours"
+        )).thenReturn(List.of(
+                bucket(temperature.getId(), firstMeasuredAt, 12.0),
+                bucket(humidity.getId(), rowFiveThousandAt, 56.0),
+                bucket(temperature.getId(), Instant.parse("2026-07-28T06:00:00Z"), 21.0)
+        ));
+
+        var response = service.currentGraphMeasurements(station.getId(), graph.getId(), "ALL_TIME", viewer.getEmail());
+
+        assertThat(response.aggregated()).isTrue();
+        assertThat(response.aggregationNote()).isEqualTo("All-time data is aggregated for performance.");
+        assertThat(response.firstMeasuredAt()).isEqualTo(firstMeasuredAt);
+        assertThat(response.lastMeasuredAt()).isEqualTo(lastMeasuredAt);
+        assertThat(response.bucketInterval()).isEqualTo("6 hours");
+        assertThat(response.measurements()).extracting("measuredAt")
+                .containsExactly(firstMeasuredAt, rowFiveThousandAt, Instant.parse("2026-07-28T06:00:00Z"));
+        verify(measurementRepository).findGraphMeasurementRange(station.getId(), List.of(temperature.getId(), humidity.getId()));
+        verify(measurementRepository).findBucketedGraphMeasurements(station.getId(), List.of(temperature.getId(), humidity.getId()), firstMeasuredAt, lastMeasuredAt, "6 hours");
+    }
+
+    @Test
+    void allTimeEmptyDatasetReturnsSafeEmptyAggregatedResponse() {
+        AppUser viewer = user();
+        Station station = station(17L, "MTO_LOUNASDA", StationCategory.METEO);
+        MeasurementVariable variable = variable(101L, station, "Temperature");
+        MeasurementVariable humidity = variable(102L, station, "Humidity");
+        UserGraphConfiguration graph = graph(viewer);
+        graph.setStation(station);
+        viewer.getStations().add(station);
+
+        when(accessControlService.findUserByEmail(viewer.getEmail())).thenReturn(viewer);
+        when(stationRepository.findById(station.getId())).thenReturn(Optional.of(station));
+        when(graphRepository.findByIdAndUserIdAndStationId(graph.getId(), viewer.getId(), station.getId())).thenReturn(Optional.of(graph));
+        when(measurementVariableRepository.findByStationIdAndIdIn(station.getId(), List.of(101L, 102L))).thenReturn(List.of(variable, humidity));
+        when(measurementRepository.findGraphMeasurementRange(station.getId(), List.of(variable.getId(), humidity.getId()))).thenReturn(range(null, null));
+
+        var response = service.currentGraphMeasurements(station.getId(), graph.getId(), "ALL_TIME", viewer.getEmail());
+
+        assertThat(response.measurements()).isEmpty();
+        assertThat(response.firstMeasuredAt()).isNull();
+        assertThat(response.lastMeasuredAt()).isNull();
+        assertThat(response.bucketInterval()).isNull();
+        verify(measurementRepository, never()).findBucketedGraphMeasurements(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void graphMeasurementsRejectUnauthorizedStationBeforeReadingRanges() {
+        AppUser viewer = user();
+        doThrow(new AccessDeniedException("Denied")).when(accessControlService).ensureStationAccess(viewer, 99L);
+        when(accessControlService.findUserByEmail(viewer.getEmail())).thenReturn(viewer);
+
+        assertThatThrownBy(() -> service.currentGraphMeasurements(99L, 55L, "ALL_TIME", viewer.getEmail()))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(measurementRepository, never()).findGraphMeasurementRange(anyLong(), any());
+        verify(measurementRepository, never()).findBucketedGraphMeasurements(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void bucketIntervalSelectionScalesWithAllTimeSpan() {
+        Instant start = Instant.parse("2026-01-01T00:00:00Z");
+
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(7)))).isEqualTo("30 minutes");
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(21)))).isEqualTo("1 hour");
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(120)))).isEqualTo("6 hours");
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(240)))).isEqualTo("12 hours");
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(730)))).isEqualTo("1 day");
+        assertThat(service.bucketIntervalFor(start, start.plus(Duration.ofDays(1500)))).isEqualTo("7 days");
+    }
+
     private static AppUser user() {
         return user(Role.VIEWER, 9L, "viewer@nexus.local");
     }
@@ -237,12 +398,16 @@ class UserGraphConfigurationServiceImplTest {
                 .graphConfiguration(graph)
                 .measurementVariable(MeasurementVariable.builder().id(101L).code("Temperature").build())
                 .variableCode("Temperature")
+                .axis(GraphAxis.PRIMARY)
+                .chartType(GraphSeriesType.LINE)
                 .displayOrder(1)
                 .build());
         graph.getVariables().add(UserGraphVariable.builder()
                 .graphConfiguration(graph)
                 .measurementVariable(MeasurementVariable.builder().id(102L).code("Humidity").build())
                 .variableCode("Humidity")
+                .axis(GraphAxis.PRIMARY)
+                .chartType(GraphSeriesType.LINE)
                 .displayOrder(2)
                 .build());
         return graph;
@@ -268,6 +433,39 @@ class UserGraphConfigurationServiceImplTest {
                 .build();
     }
 
+    private static MeasurementRepository.MeasurementRangeProjection range(Instant firstMeasuredAt, Instant lastMeasuredAt) {
+        return new MeasurementRepository.MeasurementRangeProjection() {
+            @Override
+            public Instant getFirstMeasuredAt() {
+                return firstMeasuredAt;
+            }
+
+            @Override
+            public Instant getLastMeasuredAt() {
+                return lastMeasuredAt;
+            }
+        };
+    }
+
+    private static MeasurementRepository.BucketedMeasurementProjection bucket(Long variableId, Instant measuredAt, Double numericValue) {
+        return new MeasurementRepository.BucketedMeasurementProjection() {
+            @Override
+            public Long getVariableId() {
+                return variableId;
+            }
+
+            @Override
+            public Instant getMeasuredAt() {
+                return measuredAt;
+            }
+
+            @Override
+            public Double getNumericValue() {
+                return numericValue;
+            }
+        };
+    }
+
     private static UserGraphConfigurationRequest request(Station station, MeasurementVariable variable) {
         return new UserGraphConfigurationRequest(
                 "ET0 cumulative",
@@ -276,9 +474,16 @@ class UserGraphConfigurationServiceImplTest {
                 station.getStationCategory(),
                 BigDecimal.ZERO,
                 BigDecimal.valueOf(100),
+                null,
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
                 1,
                 true,
-                List.of(new UserGraphVariableRequest(variable.getId(), variable.getCode(), 1))
+                List.of(new UserGraphVariableRequest(variable.getId(), variable.getCode(), GraphAxis.PRIMARY, GraphSeriesType.LINE, 1, null))
         );
     }
 }

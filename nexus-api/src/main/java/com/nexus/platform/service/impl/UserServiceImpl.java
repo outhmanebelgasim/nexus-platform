@@ -1,8 +1,11 @@
 package com.nexus.platform.service.impl;
 
 import com.nexus.domain.entity.AppUser;
+import com.nexus.domain.entity.MeasurementVariable;
+import com.nexus.domain.entity.UserGraphVariable;
 import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.UserStatus;
+import com.nexus.platform.dto.user.AdminPasswordResetRequest;
 import com.nexus.platform.dto.user.UserRequest;
 import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.dto.user.UserResponse;
@@ -11,6 +14,7 @@ import com.nexus.platform.dto.user.ProfileUpdateRequest;
 import com.nexus.platform.exception.DuplicateResourceException;
 import com.nexus.platform.exception.ResourceNotFoundException;
 import com.nexus.platform.mapper.UserMapper;
+import com.nexus.platform.repository.UserGraphConfigurationRepository;
 import com.nexus.platform.repository.UserRepository;
 import com.nexus.platform.service.AccessControlService;
 import com.nexus.platform.service.UserService;
@@ -33,15 +37,18 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccessControlService accessControlService;
+    private final UserGraphConfigurationRepository graphConfigurationRepository;
 
     public UserServiceImpl(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            AccessControlService accessControlService
+            AccessControlService accessControlService,
+            UserGraphConfigurationRepository graphConfigurationRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.accessControlService = accessControlService;
+        this.graphConfigurationRepository = graphConfigurationRepository;
     }
 
     @Override
@@ -117,6 +124,24 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
+    public void resetPassword(Long id, AdminPasswordResetRequest request, String currentUserEmail) {
+        AppUser currentUser = findCurrentUser(currentUserEmail);
+        AppUser targetUser = findUserById(id);
+        ensureCanManageUser(currentUser, targetUser);
+        if (currentUser != null && currentUser.getId().equals(targetUser.getId())) {
+            throw new IllegalArgumentException("Use account settings to change your own password");
+        }
+        if (!request.newPassword().equals(request.confirmPassword())) {
+            throw new IllegalArgumentException("Passwords do not match");
+        }
+
+        targetUser.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        targetUser.setUpdatedAt(Instant.now());
+        userRepository.save(targetUser);
+    }
+
+    @Override
+    @Transactional
     public UserResponse create(UserRequest request) {
         return create(request, null);
     }
@@ -166,6 +191,7 @@ public class UserServiceImpl implements UserService {
         user.setRole(updatedUser.getRole());
         user.setStatus(updatedUser.getStatus());
         accessControlService.assignAccess(currentUser, user, request.farmIds(), request.stationIds(), request.variableIds(), request.allowedMeasurementTypes());
+        pruneGraphVariablesOutsideChartAccess(user);
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
         }
@@ -282,5 +308,21 @@ public class UserServiceImpl implements UserService {
         return userRepository.findAll().stream()
                 .filter(user -> user.getRole() == Role.SUPER_ADMIN)
                 .count();
+    }
+
+    private void pruneGraphVariablesOutsideChartAccess(AppUser user) {
+        Set<Long> allowedVariableIds = user.getMeasurementVariables().stream()
+                .map(MeasurementVariable::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        graphConfigurationRepository.findByUserIdOrderByDisplayOrderAscIdAsc(user.getId()).forEach(graph -> {
+            graph.getVariables().removeIf(variable -> !isStillAllowedGraphVariable(variable, allowedVariableIds));
+            if (graph.getVariables().isEmpty()) {
+                graph.setActive(false);
+            }
+        });
+    }
+
+    private boolean isStillAllowedGraphVariable(UserGraphVariable variable, Set<Long> allowedVariableIds) {
+        return variable.getMeasurementVariable() != null && allowedVariableIds.contains(variable.getMeasurementVariable().getId());
     }
 }

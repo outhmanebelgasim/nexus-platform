@@ -97,24 +97,50 @@ class AccessControlServiceTest {
     }
 
     @Test
-    void measurementVariableAssignmentMustBelongToSelectedStationScope() {
+    void explicitStationSelectionTakesPrecedenceOverFarmScopeForVariables() {
         Farm yazid = farm(1L);
+        Station selectedStation = station(11L, yazid);
         Station unselectedStation = station(10L, yazid);
         MeasurementVariable variable = variable(100L, unselectedStation, "TA", MeasurementType.AIR_TEMPERATURE);
         AppUser target = user(Role.VIEWER);
 
         when(farmRepository.findAllById(Set.of(yazid.getId()))).thenReturn(List.of(yazid));
-        when(stationRepository.findAllById(Set.of())).thenReturn(List.of());
+        when(stationRepository.findAllById(Set.of(selectedStation.getId()))).thenReturn(List.of(selectedStation));
         when(measurementVariableRepository.findByIdIn(Set.of(variable.getId()))).thenReturn(List.of(variable));
 
         assertThatThrownBy(() -> accessControlService.assignAccess(
                 null,
                 target,
                 Set.of(yazid.getId()),
+                Set.of(selectedStation.getId()),
+                Set.of(variable.getId()),
+                Set.of(MeasurementType.AIR_TEMPERATURE)
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Measurement variable access must belong to the selected station scope");
+    }
+
+    @Test
+    void farmScopeIsUsedForVariablesOnlyWhenNoExplicitStationsAreSelected() {
+        Farm yazid = farm(1L);
+        Station farmStation = station(10L, yazid);
+        MeasurementVariable variable = variable(100L, farmStation, "TA", MeasurementType.AIR_TEMPERATURE);
+        AppUser target = user(Role.VIEWER);
+
+        when(farmRepository.findAllById(Set.of(yazid.getId()))).thenReturn(List.of(yazid));
+        when(stationRepository.findAllById(Set.of())).thenReturn(List.of());
+        when(stationRepository.findAll()).thenReturn(List.of(farmStation));
+        when(measurementVariableRepository.findByIdIn(Set.of(variable.getId()))).thenReturn(List.of(variable));
+
+        accessControlService.assignAccess(
+                null,
+                target,
+                Set.of(yazid.getId()),
                 Set.of(),
                 Set.of(variable.getId()),
                 Set.of(MeasurementType.AIR_TEMPERATURE)
-        )).isInstanceOf(AccessDeniedException.class);
+        );
+
+        assertThat(target.getMeasurementVariables()).extracting(MeasurementVariable::getId).containsExactly(variable.getId());
     }
 
     @Test

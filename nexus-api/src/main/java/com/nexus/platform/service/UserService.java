@@ -4,6 +4,7 @@ import com.nexus.platform.dto.user.UserRequest;
 import com.nexus.platform.dto.user.UserPermissionsResponse;
 import com.nexus.platform.dto.user.UserResponse;
 import com.nexus.domain.enums.UserStatus;
+import com.nexus.platform.dto.user.AdminPasswordResetRequest;
 import com.nexus.platform.dto.user.PasswordUpdateRequest;
 import com.nexus.platform.dto.user.ProfileUpdateRequest;
 
@@ -24,6 +25,8 @@ public interface UserService {
     UserResponse updateProfile(String email, ProfileUpdateRequest request);
 
     void updatePassword(String email, PasswordUpdateRequest request);
+
+    void resetPassword(Long id, AdminPasswordResetRequest request, String currentUserEmail);
 
     UserResponse create(UserRequest request);
 

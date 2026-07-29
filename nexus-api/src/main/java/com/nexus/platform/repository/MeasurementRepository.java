@@ -29,11 +29,6 @@ public interface MeasurementRepository extends JpaRepository<Measurement, Measur
             Instant end
     );
 
-    List<Measurement> findTop5000ByMeasurementVariableStationIdAndMeasurementVariableIdInOrderByIdMeasuredAtAsc(
-            Long stationId,
-            Collection<Long> variableIds
-    );
-
     @Query("""
             select measurement
             from Measurement measurement
@@ -45,4 +40,58 @@ public interface MeasurementRepository extends JpaRepository<Measurement, Measur
             @Param("stationId") Long stationId,
             @Param("variableIds") Collection<Long> variableIds
     );
+
+    @Query(value = """
+            select min(measurement.measured_at) as first_measured_at,
+                   max(measurement.measured_at) as last_measured_at
+            from measurements measurement
+            join measurement_variables variable on variable.id = measurement.variable_id
+            where variable.station_id = :stationId
+              and measurement.variable_id in (:variableIds)
+            """, nativeQuery = true)
+    MeasurementRangeProjection findGraphMeasurementRange(
+            @Param("stationId") Long stationId,
+            @Param("variableIds") Collection<Long> variableIds
+    );
+
+    @Query(value = """
+            select bucketed.variable_id as variable_id,
+                   bucketed.bucket_time as measured_at,
+                   avg(bucketed.numeric_value) as numeric_value
+            from (
+                select measurement.variable_id,
+                       time_bucket(cast(:bucketInterval as interval), measurement.measured_at) as bucket_time,
+                       measurement.numeric_value
+                from measurements measurement
+                join measurement_variables variable on variable.id = measurement.variable_id
+                where variable.station_id = :stationId
+                  and measurement.variable_id in (:variableIds)
+                  and measurement.measured_at >= :start
+                  and measurement.measured_at <= :end
+                  and measurement.numeric_value is not null
+            ) bucketed
+            group by bucketed.variable_id, bucketed.bucket_time
+            order by bucketed.bucket_time asc, bucketed.variable_id asc
+            """, nativeQuery = true)
+    List<BucketedMeasurementProjection> findBucketedGraphMeasurements(
+            @Param("stationId") Long stationId,
+            @Param("variableIds") Collection<Long> variableIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end,
+            @Param("bucketInterval") String bucketInterval
+    );
+
+    interface MeasurementRangeProjection {
+        Instant getFirstMeasuredAt();
+
+        Instant getLastMeasuredAt();
+    }
+
+    interface BucketedMeasurementProjection {
+        Long getVariableId();
+
+        Instant getMeasuredAt();
+
+        Double getNumericValue();
+    }
 }

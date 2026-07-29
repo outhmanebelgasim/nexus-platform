@@ -5,6 +5,7 @@ import com.nexus.domain.enums.Role;
 import com.nexus.domain.enums.UserStatus;
 import com.nexus.platform.dto.auth.LoginRequest;
 import com.nexus.platform.dto.auth.LoginResponse;
+import com.nexus.platform.dto.user.AdminPasswordResetRequest;
 import com.nexus.platform.dto.user.UserRequest;
 import com.nexus.platform.exception.DuplicateResourceException;
 import com.nexus.platform.repository.UserRepository;
@@ -19,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,19 +41,22 @@ class AuthPersistenceLoginIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    private String createdEmail;
+    private final List<String> createdEmails = new ArrayList<>();
 
     @AfterEach
     void cleanUp() {
-        if (createdEmail != null) {
-            userRepository.findByEmailIgnoreCase(createdEmail).ifPresent(userRepository::delete);
+        for (String createdEmail : createdEmails) {
+            if (createdEmail != null) {
+                userRepository.findByEmailIgnoreCase(createdEmail).ifPresent(userRepository::delete);
+            }
         }
+        createdEmails.clear();
     }
 
     @Test
     void createPersistsBCryptHashAndActiveUserCanLogin() {
         String rawPassword = "TempPass123!";
-        createdEmail = "auth-" + UUID.randomUUID() + "@nexus.local";
+        String createdEmail = trackEmail("auth-" + UUID.randomUUID() + "@nexus.local");
 
         userService.create(new UserRequest(
                 "Auth Integration User",
@@ -82,7 +88,7 @@ class AuthPersistenceLoginIntegrationTest {
     @Test
     void duplicateEmailIsRejectedClearlyAndInvalidCredentialsRemainUnauthorized() {
         String rawPassword = "TempPass123!";
-        createdEmail = "duplicate-" + UUID.randomUUID() + "@nexus.local";
+        String createdEmail = trackEmail("duplicate-" + UUID.randomUUID() + "@nexus.local");
         UserRequest request = new UserRequest(
                 "Duplicate User",
                 createdEmail,
@@ -112,5 +118,48 @@ class AuthPersistenceLoginIntegrationTest {
 
         assertThatThrownBy(() -> authService.login(new LoginRequest(createdEmail, "WrongPass123!")))
                 .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void adminPasswordResetRequiresNewPasswordForNextLogin() {
+        String superAdminEmail = trackEmail("reset-super-" + UUID.randomUUID() + "@nexus.local");
+        String technicianEmail = trackEmail("reset-tech-" + UUID.randomUUID() + "@nexus.local");
+        String oldPassword = "OldPass123!";
+        String newPassword = "NewPass123!";
+
+        userService.create(new UserRequest(
+                "Reset Super",
+                superAdminEmail,
+                "SuperPass123!",
+                Role.SUPER_ADMIN,
+                UserStatus.ACTIVE,
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Set.of()
+        ));
+        userService.create(new UserRequest(
+                "Reset Technician",
+                technicianEmail,
+                oldPassword,
+                Role.TECHNICIAN,
+                UserStatus.ACTIVE,
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Set.of()
+        ));
+        AppUser technician = userRepository.findByEmailIgnoreCase(technicianEmail).orElseThrow();
+
+        userService.resetPassword(technician.getId(), new AdminPasswordResetRequest(newPassword, newPassword), superAdminEmail);
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest(technicianEmail, oldPassword)))
+                .isInstanceOf(BadCredentialsException.class);
+        assertThat(authService.login(new LoginRequest(technicianEmail, newPassword)).token()).isNotBlank();
+    }
+
+    private String trackEmail(String email) {
+        createdEmails.add(email);
+        return email;
     }
 }

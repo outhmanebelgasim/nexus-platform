@@ -1,5 +1,6 @@
 package com.nexus.platform.controller;
 
+import com.nexus.platform.dto.user.AdminPasswordResetRequest;
 import com.nexus.platform.dto.user.PasswordUpdateRequest;
 import com.nexus.platform.dto.user.ProfileUpdateRequest;
 import com.nexus.platform.dto.user.UserRequest;
@@ -63,6 +64,16 @@ public class UserController {
             Authentication authentication
     ) {
         userService.updatePassword(authentication.getName(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/password")
+    public ResponseEntity<Void> resetPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminPasswordResetRequest request,
+            Authentication authentication
+    ) {
+        userService.resetPassword(id, request, authentication.getName());
         return ResponseEntity.noContent().build();
     }
 
